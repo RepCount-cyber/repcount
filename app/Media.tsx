@@ -101,7 +101,7 @@ export default function Film({clip='home', className='', controls=true, priority
       onError={()=>{setError(true);setWaiting(false);}}/>
     <div className="rc-film-shade"/>
     {caption&&<span className="rc-film-caption">{caption}</span>}
-    {error?<div className="rc-film-error"><span>This video couldn’t load.</span><button onClick={retry}>Try again <Icon name="arrow" size={16}/></button></div>:<>
+    {error?<div className="rc-film-error" role="status"><span>This video couldn’t load.</span><button onClick={retry} aria-label={`Retry ${asset.title}`}>Try again <Icon name="arrow" size={16}/></button></div>:<>
       <button className="rc-film-toggle" onClick={toggle} aria-label={`${playing?'Pause':'Play'} ${asset.title}`}><Icon name={playing?'pause':'play'} size={18}/></button>
       {waiting&&loaded&&<span className="rc-film-loading" role="status">Loading video…</span>}
       {controls&&<div className="rc-film-controls"><span>{timestamp(time)}</span><input type="range" aria-label={`Seek ${asset.title}`} min={0} max={duration||1} step={.1} value={Math.min(time,duration||1)} disabled={!duration} onChange={e=>{if(element.current)element.current.currentTime=Number(e.target.value);}}/><span>{timestamp(duration)}</span></div>}

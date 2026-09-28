@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 import Landing from "./Landing";
 import Brand from "./Brand";
@@ -9,6 +9,30 @@ import "./member-polish.css";
 
 type View = "overview" | "plan" | "nutrition" | "progress" | "team" | "membership" | "programme" | "staff";
 type Modal = "booking" | "checkin" | "join" | "payment" | "message" | null;
+const memberViews:View[]=["overview","plan","nutrition","progress","team","membership","programme","staff"];
+const navigationEvent="repcount:navigate";
+function memberViewFromHash(hash:string):View|null {
+  if(!hash.startsWith("#member/"))return null;
+  const value=hash.slice("#member/".length);
+  return memberViews.includes(value as View)?value as View:null;
+}
+function readHash(){return window.location.hash;}
+function subscribeToHash(onChange:()=>void){
+  window.addEventListener("hashchange",onChange);
+  window.addEventListener("popstate",onChange);
+  window.addEventListener(navigationEvent,onChange);
+  return()=>{
+    window.removeEventListener("hashchange",onChange);
+    window.removeEventListener("popstate",onChange);
+    window.removeEventListener(navigationEvent,onChange);
+  };
+}
+function navigateToHash(hash:string){
+  if(window.location.hash!==hash){
+    window.history.pushState(null,"",hash);
+    window.dispatchEvent(new Event(navigationEvent));
+  }
+}
 const photo = "https://images.pexels.com/videos/8837215/pexels-photo-8837215.jpeg?auto=compress&w=1200";
 const exercises = [
   ["Easy warm-up", "5 minutes · gentle movement", "Begin at a comfortable pace. This session illustrates the app experience; it is not a personalised prescription."],
@@ -24,8 +48,10 @@ const seed = [
   {name:"Kabir M.",initials:"KM",stage:"Check-in due",trainer:"Akif",paid:true,progress:50},
 ];
 export default function Home() {
-  const [landing,setLanding]=useState(true);
-  const [view,setView]=useState<View>("overview");
+  const hash=useSyncExternalStore(subscribeToHash,readHash,()=>"");
+  const memberView=memberViewFromHash(hash);
+  const landing=memberView===null;
+  const view=memberView??"overview";
   const [day,setDay]=useState(0);
   const [done,setDone]=useState<number[]>([]);
   const [workout,setWorkout]=useState(false);
@@ -46,16 +72,36 @@ export default function Home() {
   const [payment,setPayment]=useState(false);
   const dialog=useRef<HTMLDialogElement>(null);
   const heading=useRef<HTMLHeadingElement>(null);
-  const previousLanding=useRef(landing);
+  const previousHash=useRef<string|null>(null);
   useEffect(()=>{
-    if(previousLanding.current===landing)return;
-    previousLanding.current=landing;
+    const previous=previousHash.current;
+    previousHash.current=hash;
+    const currentMember=memberViewFromHash(hash);
+    if(previous===hash||(previous===null&&!currentMember))return;
     const frame=requestAnimationFrame(()=>{
-      const target=landing?document.querySelector<HTMLHeadingElement>("main h1"):heading.current;
-      target?.focus({preventScroll:true});
+      if(currentMember){
+        window.scrollTo({top:0,behavior:"instant"});
+        heading.current?.focus({preventScroll:true});
+      }else if(previous!==null&&memberViewFromHash(previous)){
+        const anchor=hash?document.getElementById(hash.slice(1)):null;
+        if(anchor)anchor.scrollIntoView({behavior:"instant"});
+        else window.scrollTo({top:0,behavior:"instant"});
+        document.querySelector<HTMLHeadingElement>("main h1")?.focus({preventScroll:true});
+      }
     });
     return()=>cancelAnimationFrame(frame);
-  },[landing]);
+  },[hash]);
+  useEffect(()=>{
+    const closeDialog=()=>setModal(null);
+    window.addEventListener("hashchange",closeDialog);
+    window.addEventListener("popstate",closeDialog);
+    window.addEventListener(navigationEvent,closeDialog);
+    return()=>{
+      window.removeEventListener("hashchange",closeDialog);
+      window.removeEventListener("popstate",closeDialog);
+      window.removeEventListener(navigationEvent,closeDialog);
+    };
+  },[]);
   useEffect(()=>{
     const currentDialog=dialog.current;
     if(modal){
@@ -66,17 +112,17 @@ export default function Home() {
     }
   },[modal]);
   const nav:[View,string,string][]=[["overview","home","Overview"],["plan","move","My plan"],["nutrition","leaf","Nutrition"],["progress","chart","My progress"],["team","chat","My team"],["membership","lock","Membership"]];
-  function go(v:View){setView(v);setNotice("");setWorkout(false);window.scrollTo({top:0,behavior:"instant"});setTimeout(()=>heading.current?.focus(),0);}
+  function go(v:View){navigateToHash(`#member/${v}`);setNotice("");setWorkout(false);window.scrollTo({top:0,behavior:"instant"});setTimeout(()=>heading.current?.focus(),0);}
   function open(m:Modal){setSlot(booking);setDraftEnergy(energy);setDraftPlanFit(planFit);setModal(m);}
   const weekly=finished?4:3;
   const completedDays=[0,2,4,5].slice(0,weekly);
   const titles:Record<View,string>={overview:"A little time. All for you.",plan:"A little progress, every day.",nutrition:"A little nourishment. A little rhythm.",progress:"Consistency looks good on you.",team:"Real people. In your corner.",membership:"Your next chapter starts here.",programme:"Feel stronger. Live more.",staff:"A clear view of your people."};
   const visibleClients=clients.filter(c=>c.name.toLowerCase().includes(query.toLowerCase())&&(filter==="All clients"||c.stage===filter));
-  if(landing) return <Landing onEnter={()=>{setLanding(false);window.scrollTo({top:0,behavior:"instant"});}}/>;
+  if(landing) return <Landing onEnter={()=>go("overview")}/>;
   return <div className="app rc-member">
-    <a className="skip" href="#main">Skip to content</a>
+    <a className="skip" href="#main" onClick={event=>{event.preventDefault();heading.current?.focus();}}>Skip to content</a>
     <aside className="sidebar"><button className="brand" aria-label="RepCount overview" onClick={()=>go("overview")}><Brand/></button><div className="workspace-label">YOUR EVERYDAY, STRONGER</div><nav aria-label="Client navigation">{nav.map(([key,icon,label])=><button key={key} title={label} className={view===key?"nav active":"nav"} onClick={()=>go(key)} aria-current={view===key?"page":undefined}><span aria-hidden="true"><Icon name={icon} size={20}/></span><span className="nav-label">{label}</span>{key==="team"&&<small>2</small>}</button>)}</nav><div className="sidebar-note"><span className="little-sun"><Icon name="sun" size={30}/></span><h3>Small steps.<br/>Lasting change.</h3><p>You don’t have to do it alone.</p><button onClick={()=>go("team")}>Meet your support team <span><Icon name="diagonal" size={16}/></span></button></div><div className="sidebar-bottom"><button onClick={()=>go("programme")}>Explore the programme <span><Icon name="diagonal" size={16}/></span></button><button onClick={()=>go("staff")}>Staff workspace <span><Icon name="home" size={16}/></span></button><div className="profile"><span className="avatar">AS</span><div><b>Aarav Sharma</b><small>Sample member</small></div><span>⌄</span></div></div></aside>
-    <div className="content"><header className="topbar"><span><span className="status-dot"/> INDIA PILOT <span className="divider">/</span> YOUR 30-DAY JOURNEY</span><div><span className="demo-badge">Interactive demo</span><button className="top-avatar" onClick={()=>go("membership")} aria-label="Open membership">AS</button></div></header><main id="main"><div className="page-heading"><div><p className="eyebrow">{view==="programme"?"ONLINE COACHING, BUILT AROUND YOU":view==="staff"?"TEAM WORKSPACE · SAMPLE COHORT":"WEEK OF 19 OCTOBER 2026 · SAMPLE WEEK"}</p><h1 ref={heading} tabIndex={-1}>{titles[view]}</h1><p>{view==="overview"?"Welcome back, Aarav. Let’s make a little time for you.":view==="staff"?"Keep the next step clear for every client.":"Movement, personal support and a plan that fits your life."}</p></div><span className="pilot-tag">✦ Founding cohort</span></div><div className="preview-bar"><button onClick={()=>{setLanding(true);window.scrollTo({top:0,behavior:"instant"});}}>← Public homepage</button><p>Fictional client data. Changes last for this visit only; no messages, bookings or payments are sent.</p><div><button onClick={()=>go("programme")}>Programme ↗</button><button onClick={()=>go("staff")}>Staff demo ⇄</button></div></div>{notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="Dismiss notification"><Icon name="close" size={18}/></button></div>}
+    <div className="content"><header className="topbar"><span><span className="status-dot"/> INDIA PILOT <span className="divider">/</span> YOUR 30-DAY JOURNEY</span><div><span className="demo-badge">Interactive demo</span><button className="top-avatar" onClick={()=>go("membership")} aria-label="Open membership">AS</button></div></header><main id="main"><div className="page-heading"><div><p className="eyebrow">{view==="programme"?"ONLINE COACHING, BUILT AROUND YOU":view==="staff"?"TEAM WORKSPACE · SAMPLE COHORT":"WEEK OF 19 OCTOBER 2026 · SAMPLE WEEK"}</p><h1 ref={heading} tabIndex={-1}>{titles[view]}</h1><p>{view==="overview"?"Welcome back, Aarav. Let’s make a little time for you.":view==="staff"?"Keep the next step clear for every client.":"Movement, personal support and a plan that fits your life."}</p></div><span className="pilot-tag">✦ Founding cohort</span></div><div className="preview-bar"><button onClick={()=>navigateToHash("#rc-top")}>← Public homepage</button><p>Fictional client data. Changes last for this visit only; no messages, bookings or payments are sent.</p><div><button onClick={()=>go("programme")}>Programme ↗</button><button onClick={()=>go("staff")}>Staff demo ⇄</button></div></div>{notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="Dismiss notification"><Icon name="close" size={18}/></button></div>}
     {view==="overview"&&<><div className="overview-grid"><section className="hero"><img src={photo} alt="Woman training with dumbbells in a bright home interior"/><div className="hero-shade"/><div className="hero-top"><span>YOUR SPACE. YOUR PACE.</span><span className="hero-pill">Week 01 / 04</span></div><div className="hero-copy"><p>Room to move.<br/><em>Space to grow.</em></p><span>A little strength, right where you are.</span><button className="button light" onClick={()=>{go("plan");setDay(0);setWorkout(true);}}>Explore today’s workout <span><Icon name="diagonal" size={16}/></span></button></div><a className="photo-credit" href="https://www.pexels.com/video/woman-exercising-at-home-8837215/" target="_blank" rel="noreferrer">Illustrative home training · Pexels</a></section><section className="card journey"><div className="section-top"><span className="eyebrow">YOUR WEEK AT A GLANCE</span><span><Icon name="diagonal" size={16}/></span></div><h2>You’re showing up.<br/>That’s what matters.</h2><div className="ring" style={{"--progress":`${weekly*25}%`} as CSSProperties}><div><strong>{weekly}<small>/4</small></strong><span>workouts complete</span></div></div><div className="week-dots" aria-label={`${weekly} of four planned workouts completed`}>{["M","T","W","T","F","S","S"].map((d,i)=><span key={i} className={completedDays.includes(i)?"checked":""}>{completedDays.includes(i)?"✓":d}</span>)}</div><p>{finished?"You reached this week’s workout goal.":"One more session to reach your weekly goal."}</p><button className="text-button" onClick={()=>go("progress")}>See your progress <span><Icon name="arrow" size={16}/></span></button></section></div><div className="member-pulse" aria-label="Your sample week"><div><span className="member-pulse-label">YOUR MOMENTUM</span><strong>{weekly * 25}<small>%</small></strong><span>of your weekly plan</span></div><div><span className="member-pulse-label">TIME FOR YOURSELF</span><strong>{finished ? 90 : 65}<small>min</small></strong><span>logged this week</span></div><div><span className="member-pulse-label">NEXT CONVERSATION</span><strong>{booking.split(",")[0].slice(0,3)}<small>{booking.split(", ")[1].split(" · ")[0]}</small></strong><span>your sample trainer check-in</span></div></div><div className="section-heading"><h2>A little structure. A lot of support.</h2><span>YOUR NEXT STEPS</span></div><div className="three-grid"><section className="card action-card"><div className="section-top"><span className="tile-icon sage"><Icon name="move" size={22}/></span><span className="pill">TODAY</span></div><p className="eyebrow">MOVE WITH INTENTION</p><h3>Full-body foundations</h3><p>Build your rhythm with a simple strength session.</p><div className="meta">25 min <span>·</span> Beginner <span>·</span> At home</div><button className="button dark" onClick={()=>{go("plan");setDay(0);setWorkout(true);}}>{finished?"Review workout":"View workout"}<span><Icon name="arrow" size={16}/></span></button></section><section className="card action-card"><div className="section-top"><span className="tile-icon peach"><Icon name="chat" size={22}/></span><span className="pill">WEEKLY SUPPORT</span></div><p className="eyebrow">YOUR TRAINER CHECK-IN</p><h3>A conversation that counts.</h3><p>Review your week and shape what comes next.</p><div className="person"><span className="avatar clay">AK</span><div><b>Akif</b><small>Trainer coordination · sample assignment</small></div></div><button className="button outline" onClick={()=>open("booking")}>{booking.split(" · ")[0]}<span><Icon name="diagonal" size={16}/></span></button></section><section className="card action-card lavender"><div className="section-top"><span className="tile-icon purple"><Icon name="heart" size={22}/></span><span className="pill">A MOMENT FOR YOU</span></div><p className="eyebrow">PAUSE. REFLECT. RESET.</p><h3>How is your week going?</h3><p>Your feedback helps your coach adapt the plan to you.</p><div className="checkin-visual" aria-hidden="true">◡ <span>—</span> ◡</div><button className="button outline" onClick={()=>open("checkin")}>{checkin?"Update your check-in":"Complete weekly check-in"}<span><Icon name="arrow" size={16}/></span></button></section></div><section className="bottom-banner"><div><span className="mini-icon"><Icon name="heart" size={24}/></span><div><h3>Supported as a whole person.</h3><p>Your programme includes psychologist onboarding and weekly trainer follow-ups.</p></div></div><button className="text-button" onClick={()=>go("team")}>Meet your team →</button></section></>}
     {view==="plan"&&<><div className="day-strip" role="group" aria-label="Choose a sample training day">{["Mon 19","Tue 20","Wed 21","Thu 22","Fri 23","Sat 24","Sun 25"].map((d,i)=><button key={d} className={day===i?"selected":""} aria-pressed={day===i} onClick={()=>{setDay(i);setWorkout(false);}}>{d}<small>{[0,2,4,5].includes(i)?"Movement":"Recovery"}</small></button>)}</div><div className="two-grid"><section className="card plan-main"><span className="eyebrow">{[0,2,4,5].includes(day)?"SAMPLE TRAINER PLAN":"RECOVERY DAY"}</span><h2>{[0,2,4,5].includes(day)?"Full-body foundations":"Make room for recovery."}</h2><p>{[0,2,4,5].includes(day)?"25 minutes · beginner · no gym required":"No workout scheduled. Follow your trainer’s agreed recovery guidance."}</p>{[0,2,4,5].includes(day)&&<><div className="plan-note">Illustrative session for the preview. A qualified trainer must approve each client’s actual plan. All movement days open this same sample session.</div>{!workout?<button className="button dark" onClick={()=>setWorkout(true)}>Open sample session →</button>:<><div className="exercise-list">{exercises.map(([name,detail,cue],i)=><div className={done.includes(i)?"exercise complete":"exercise"} key={name}><button className="exercise-check" disabled={finished} aria-label={`${done.includes(i)?"Unmark":"Complete"} ${name}`} aria-pressed={done.includes(i)} onClick={()=>setDone(previous=>previous.includes(i)?previous.filter(n=>n!==i):[...previous,i])}>{done.includes(i)?"✓":i+1}</button><details><summary><b>{name}</b><small>{detail}</small></summary><p>{cue}</p></details></div>)}</div><label className="field">How did this session feel?<select disabled={finished} value={feedback} onChange={e=>setFeedback(e.target.value)}><option value="">Choose feedback</option><option>Too easy</option><option>About right</option><option>Too difficult</option></select></label><button className="button dark" disabled={done.length!==5||!feedback||finished} onClick={()=>{setFinished(true);setNotice("Sample workout completed. Your weekly progress is now 4 of 4.");}}>{finished?"Session complete ✓":`Complete session · ${done.length}/5`}</button></>}</>}</section><aside className="card member-plan-support"><div className="member-video"><video controls muted playsInline preload="metadata" poster={photo} aria-label="Illustrative home exercise video"><source src="https://videos.pexels.com/video-files/8837215/8837215-hd_1366_720_25fps.mp4" type="video/mp4"/>Your browser does not support this video. <a href="https://videos.pexels.com/video-files/8837215/8837215-hd_1366_720_25fps.mp4">Open the home training preview</a>.</video><span>AT HOME · MOVEMENT PREVIEW</span></div><span className="tile-icon sage"><Icon name="chat" size={22}/></span><h3>A plan you can talk about.</h3><p>A small space can be a good starting point. This video shows the setting; your own session follows your trainer-approved plan.</p><button className="button outline" onClick={()=>open("message")}>Draft a coach message →</button><a className="member-media-credit" href="https://www.pexels.com/video/woman-exercising-at-home-8837215/" target="_blank" rel="noreferrer">Illustrative footage · Pexels</a></aside></div></>}
     {view==="nutrition"&&<Nutrition/>}
