@@ -1,0 +1,165 @@
+/* Contrast-only polish. Import after landing-premium.css; geometry is unchanged.
+   #565c50 is at least 5.46:1 against the darkest light surface (#e2e9df).
+   #808575 boundaries are at least 3:1 against those light surfaces. */
+.rc-site {
+  --rc-muted: #565c50;
+  --rc-readable-muted: #565c50;
+  --rc-control-border: #808575;
+}
+
+.rc-site :is(
+  .rc-eyebrow,
+  .rc-hero-promise,
+  .rc-mini-session span,
+  .rc-mini-week > span,
+  .rc-mini-week > div > i:not(.done),
+  .rc-belief-strip > span,
+  .rc-belief-strip > a,
+  .rc-feature-options small,
+  .rc-feature-options > button > span > span,
+  .rc-stage-label,
+  .rc-phone-brand > span:last-child,
+  .rc-screen-title > small,
+  .rc-screen-title p,
+  .rc-session-description span,
+  .rc-phone-metrics small,
+  .rc-phone-metrics b > span,
+  .rc-phone-footnote,
+  .rc-phone-nav > button:not(.active),
+  .rc-stage-note,
+  .rc-segment > button:not(.active),
+  .rc-meals > div > span,
+  .rc-meals small,
+  .rc-stat-total strong small,
+  .rc-stat-total > span,
+  .rc-training-chart span,
+  .rc-training-chart small,
+  .rc-stat-pair small,
+  .rc-stat-pair span,
+  .rc-water small,
+  .rc-coach-note > span,
+  .rc-coach-note small,
+  .rc-coach-note p,
+  .rc-checkin-inline > span,
+  .rc-checkin-inline > div > button,
+  .rc-home-foot,
+  .rc-support-copy > p:not(.rc-eyebrow),
+  .rc-support-points p,
+  .rc-support-points > div > span,
+  .rc-support-privacy p,
+  .rc-support-circle,
+  .rc-journey-grid article > div > span,
+  .rc-journey-grid small,
+  .rc-journey-grid p,
+  .rc-cohort-facts span,
+  .rc-launch-note,
+  .rc-proposed-team > span,
+  .rc-proposed-team small,
+  .rc-proposed-team p,
+  .rc-faq-list details > p,
+  .rc-finale > span,
+  .rc-footer-main > div:first-child > p,
+  .rc-footer-main > div > span:not(.rc-brand),
+  .rc-footer-main > div > p,
+  .rc-footer-main > div > small,
+  .rc-footer-main > div > a,
+  .rc-footer-main > div > button,
+  .rc-footer-bottom,
+  .rc-credits > p,
+  .rc-quiz-options > button > span,
+  .rc-quiz-disclosure,
+  .rc-quiz-result span,
+  .rc-quiz-restart
+) { color: var(--rc-readable-muted); }
+
+/* Borders communicate the operable area on light surfaces. Decorative
+   dividers, photo frames and the red identity intentionally remain untouched. */
+.rc-site :is(
+  .rc-play-link > span,
+  .rc-quiz-close,
+  .rc-quiz-options > button,
+  .rc-quiz-options > button > i,
+  .rc-water button,
+  .rc-checkin-inline > div > button
+) { border-color: var(--rc-control-border); }
+.rc-site .rc-quiz-options > button.selected { border-color: #b81030; }
+.rc-site .rc-quiz-options > button.selected > i { border-color: #e51937; }
+.rc-site .rc-checkin-inline > div > button.active { border-color: #565c50; }
+.rc-site :is(.rc-water svg, .rc-quiz-close, .rc-quiz-options > button > i) { color: #565c50; }
+.rc-site .rc-quiz-options > button.selected > i { color: white; }
+
+/* A two-colour ring remains distinguishable over paper, dark cards and video. */
+.rc-site :is(button, a, input, summary):focus-visible {
+  outline: 3px solid #242822;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px #fffdf8;
+}
+.rc-site .rc-film-caption {
+  color: #fffdf8;
+  background-color: #182020e8;
+  text-shadow: none;
+}
+.rc-site .rc-film-controls {
+  color: #fffdf8;
+  background-color: #182020d9;
+}
+
+/* The member redesign uses the same readable neutral on its light surfaces. */
+.rc-member.rc-member { --muted: #565c50; }
+.rc-member :is(
+  .workspace-label,
+  .nav:not(.active),
+  .nav small,
+  .sidebar-note p,
+  .demo-badge,
+  .page-heading p:not(.eyebrow),
+  .eyebrow,
+  .pilot-tag,
+  .preview-bar,
+  .preview-bar p,
+  .section-heading > span,
+  .pill,
+  .bottom-banner p,
+  .member-pulse-label,
+  .member-pulse strong small,
+  .member-pulse > div > span:last-child,
+  .plan-note,
+  .member-media-credit,
+  .member-footer-note,
+  .member-care-intro h2 em,
+  .large-avatar
+) { color: #565c50; }
+.rc-member .day-strip button.selected small { color: #fff; }
+.rc-member .sidebar .sidebar-note > h3,
+.rc-member .sidebar .profile > div > b { color: #252822; }
+.rc-member .sidebar .sidebar-note > button,
+.rc-member .sidebar .sidebar-bottom > button,
+.rc-member .sidebar .profile > div > small,
+.rc-member.rc-member .top-avatar,
+.rc-member.rc-member .avatar.clay { color: #565c50; }
+.rc-member .exercise.complete .exercise-check { background-color: #586d43; color: #fff; }
+.rc-member :is(
+  .field input,
+  .field select,
+  .filters input,
+  .filters select,
+  .button.outline,
+  .day-strip button:not(.selected),
+  .exercise-check:not(:disabled)
+) { border-color: #808575; }
+.rc-member :is(button, a, input, select, summary):focus-visible {
+  outline: 3px solid #242822;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px #fffdf8;
+}
+
+@media (forced-colors: active) {
+  :is(.rc-site, .rc-member) :is(button, a, input, select, summary):focus-visible {
+    outline-color: Highlight;
+    box-shadow: none;
+  }
+  .rc-site :is(.rc-film-toggle, .rc-phone-action, .rc-button) {
+    border: 1px solid ButtonText;
+  }
+  .rc-site .rc-training-chart i { background: CanvasText; }
+}

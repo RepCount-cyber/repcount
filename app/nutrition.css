@@ -1,0 +1,51 @@
+.rc-member .member-nutrition-intro{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);border-radius:18px;overflow:hidden;background:#e9ecdf;margin-bottom:28px}
+.rc-member .member-nutrition-intro>div{padding:32px}
+.rc-member .member-nutrition-intro h2{font-family:Georgia,serif;font-weight:400;font-size:37px;line-height:1.07;letter-spacing:-1.15px;margin:19px 0}
+.rc-member .member-nutrition-intro h2 em{font-weight:400;color:#818d6d}
+.rc-member .member-nutrition-intro p{font-size:13px;line-height:1.75;color:#666e5c;max-width:380px}
+.rc-member .member-nutrition-scope{display:flex;gap:9px;align-items:flex-start;padding-top:15px;border-top:1px solid #cfd6c0;color:#6b755d;font-size:10px;line-height:1.65}
+.rc-member .member-nutrition-scope svg{flex-shrink:0;margin-top:2px}
+.rc-member .member-nutrition-intro figure{position:relative;margin:0;min-height:300px}
+.rc-member .member-nutrition-intro img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.rc-member .member-nutrition-intro figcaption{position:absolute;bottom:0;left:0;right:0;padding:15px;font-size:8px;color:#fff;background:linear-gradient(transparent,#242923c9)}
+.rc-member .member-nutrition-controls{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:32px}
+.rc-member .member-nutrition-controls .eyebrow{display:block;margin-bottom:13px;font-size:9px}
+.rc-member .member-nutrition-options,.rc-member .member-nutrition-days{display:flex;gap:7px;flex-wrap:wrap}
+.rc-member .member-nutrition-options button,.rc-member .member-nutrition-days button{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #dbddcd;background:#fbfaf4;color:#6c735e;border-radius:9px;min-height:44px;font-size:12px;padding:10px 16px}
+.rc-member .member-nutrition-options button[aria-pressed=true],.rc-member .member-nutrition-days button[aria-pressed=true]{background:#2c3327;border-color:#2c3327;color:#fffdf4}
+.rc-member .member-nutrition-days button{min-width:48px;padding:10px 12px}
+.rc-member .member-nutrition-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:19px}
+.rc-member .member-nutrition-heading h2{font-size:23px;font-weight:500;letter-spacing:-.6px;margin:7px 0 0}
+.rc-member .member-nutrition-heading .eyebrow{font-size:8px;letter-spacing:.9px;margin:0}
+.rc-member .member-nutrition-heading>span{font-size:11px;color:#737860;white-space:nowrap}
+.rc-member .member-meal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
+.rc-member .member-meal-card{display:flex;flex-direction:column;padding:23px;border:1px solid #e2e3d5;border-radius:15px;background:#fffdf6;min-width:0}
+.rc-member .member-meal-top{display:flex;align-items:center;gap:9px;color:#7f896d;font-size:11px;margin-bottom:29px}
+.rc-member .member-meal-top svg{margin-left:auto}
+.rc-member .member-meal-number{font-size:8px;border:1px solid #d9ddca;border-radius:50%;width:24px;height:24px;display:grid;place-items:center}
+.rc-member .member-meal-tag{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#85896f;display:block;margin-bottom:12px}
+.rc-member .member-meal-card h3{font-family:Georgia,serif;font-size:25px;line-height:1.06;font-weight:400;letter-spacing:-.6px;margin-bottom:15px}
+.rc-member .member-meal-card p{font-size:12px;color:#737662;line-height:1.7;margin-bottom:24px;flex:1}
+.rc-member .member-meal-card button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;border-top:1px solid #e1e3d6;min-height:44px;font-size:11px;color:#d21835;padding:14px 0 0}
+.rc-member .member-meal-card.is-logged{background:#eef1e4;border-color:#cdd6ba}
+.rc-member .member-meal-card.is-logged button{color:#626f48}
+.rc-member .member-water-card{display:flex;align-items:center;justify-content:space-between;gap:30px;border:1px solid #dedfd2;background:#edeee2;border-radius:15px;padding:25px 28px;margin-top:22px}
+.rc-member .member-water-copy h3{font-family:Georgia,serif;font-size:26px;font-weight:400;line-height:1.12;letter-spacing:-.6px;margin:8px 0 10px}
+.rc-member .member-water-copy p{font-size:12px;color:#737a62;margin:0;line-height:1.7}
+.rc-member .member-water-copy .eyebrow{font-size:9px}
+.rc-member .member-water-control{display:flex;align-items:center;gap:18px;flex-shrink:0}
+.rc-member .member-water-control button{width:42px;height:42px;display:grid;place-items:center;border:1px solid #cbd1bc;border-radius:50%;background:#fbfcf2;color:#5a6745;font-size:24px}
+.rc-member .member-water-number{min-width:85px;text-align:center;display:flex;flex-direction:column;gap:5px}
+.rc-member .member-water-number strong{font-family:Georgia,serif;font-size:43px;font-weight:400;line-height:1}
+.rc-member .member-water-number small{font-size:10px;color:#768063}
+.rc-member .member-nutrition-note{font-size:10px;line-height:1.7;color:#777a6b;margin:16px 0 0}
+@media(max-width:1050px){.rc-member .member-meal-grid{gap:12px}.rc-member .member-meal-card{padding:18px}.rc-member .member-meal-card h3{font-size:23px}.rc-member .member-nutrition-intro>div{padding:27px}.rc-member .member-nutrition-intro h2{font-size:33px}}
+@media(max-width:700px){.rc-member .member-nutrition-intro{grid-template-columns:minmax(0,1fr)}.rc-member .member-nutrition-intro>div{padding:26px}.rc-member .member-nutrition-intro figure{min-height:210px}.rc-member .member-nutrition-intro img{object-position:center 48%}.rc-member .member-nutrition-controls{flex-direction:column;gap:20px}.rc-member .member-nutrition-heading{align-items:flex-start;flex-direction:column;gap:12px}.rc-member .member-nutrition-heading h2{font-size:22px}.rc-member .member-meal-grid{grid-template-columns:minmax(0,1fr)}.rc-member .member-meal-card{padding:23px}.rc-member .member-meal-top{margin-bottom:20px}.rc-member .member-meal-card h3{font-size:28px}.rc-member .member-meal-card p{font-size:13px}.rc-member .member-water-card{flex-direction:column;align-items:flex-start;padding:24px;gap:24px}.rc-member .member-water-control{width:100%;justify-content:center}.rc-member .member-nutrition-note{font-size:10px}}
+
+@media(max-width:600px){
+ .rc-member .sidebar nav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}
+ .rc-member .sidebar .nav{width:100%;min-width:0;min-height:56px;padding:7px 2px;gap:5px;font-size:9px}
+ .rc-member .sidebar .nav-label{font-size:9px;letter-spacing:-.15px;line-height:1.15;white-space:nowrap}
+ .rc-member .sidebar .nav>span:first-child{width:20px;height:20px}
+}
+@media(max-width:350px){.rc-member .sidebar .nav-label{font-size:8px;letter-spacing:-.15px}}

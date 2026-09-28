@@ -1,0 +1,27 @@
+/* Original RepCount identity. Fully scoped; no global element styles. */
+.rc-brand {
+  --rc-brand-red: #e51937;
+  --rc-brand-ink: #242623;
+  --rc-brand-cut: #fbf7f0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  color: var(--rc-brand-ink);
+  vertical-align: middle;
+  line-height: 1;
+  text-decoration: none;
+  font-size: 31px;
+  flex-shrink: 0;
+}
+.rc-brand-lockup { display: inline-flex; align-items: center; gap: .015em; white-space: nowrap; }
+.rc-brand .rc-brand-mark { display: block; width: 1.02em; height: 1.11em; color: var(--rc-brand-red); flex: 0 0 auto; margin-right: -.02em; }
+.rc-brand-word { display: inline-flex; align-items: baseline; font-family: 'Manrope', Arial, sans-serif; font-weight: 800; font-size: 1em; line-height: 1; letter-spacing: -.075em; transform: translateY(.02em); }
+.rc-brand-count { font-weight: 650; letter-spacing: -.07em; }
+.rc-brand-stop { display: inline-block; width: .12em; height: .12em; background: var(--rc-brand-red); border-radius: 50%; margin-left: .065em; }
+.rc-brand--light { --rc-brand-ink: #fbf7f0; --rc-brand-cut: #242623; }
+.rc-brand--footer { font-size: clamp(38px, 5vw, 72px); }
+.rc-brand--signature { font-size: clamp(38px, 6vw, 80px); }
+.rc-brand-signature { font-family: 'DM Sans', Arial, sans-serif; font-weight: 500; font-size: .115em; line-height: 1.5; letter-spacing: .32em; margin-top: 1.4em; margin-left: .35em; }
+.rc-brand--phone { font-size: 21px; }
+.rc-brand--mark { font-size: 40px; }
+@media (max-width: 520px) { .rc-brand--header { font-size: 27px; } .rc-brand--footer { font-size: 42px; } }

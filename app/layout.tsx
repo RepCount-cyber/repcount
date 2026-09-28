@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "RepCount — Your space to move forward",
-  description: "A private design preview for personal online coaching: movement, psychologist onboarding and weekly trainer support.",
+  title: "RepCount — Stronger, in your own space.",
+  description: "Personal home training, thoughtful wellbeing support and everyday progress. An interactive preview of RepCount’s proposed India pilot.",
   robots: { index: false, follow: false },
+  openGraph: {
+    title: "RepCount — Stronger, in your own space.",
+    description: "Personal training. Thoughtful support. Explore the interactive RepCount preview.",
+    type: "website",
+    url: "https://repcount-cyber.github.io/repcount/",
+    images: [{url: "https://repcount-cyber.github.io/repcount/repcount-share.png", width: 1200, height: 630, alt: "RepCount. Stronger, in your own space."}],
+  },
 };
 export default function RootLayout({children}: Readonly<{children: React.ReactNode}>) {
   return <html lang="en"><body>{children}</body></html>;
