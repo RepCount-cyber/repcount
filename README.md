@@ -8,6 +8,8 @@ Client views include a daily overview, a guided sample workout, a nutrition conc
 
 All client records are fictional. Changes last for the current page visit only. No actual messages, bookings, payments or enrolments are submitted. Staff switching is a preview control, not authentication.
 
+Member views support direct links such as `#member/nutrition` and normal browser Back/Forward navigation. A web manifest and original home-screen icons give supported browsers a consistent saved-site identity; offline operation is not provided.
+
 ## Development
 
 - Node.js 22.13 or newer.
@@ -26,6 +28,8 @@ An original crimson R identity, warm ivory and charcoal, editorial typography, a
 
 Illustrative media comes from Pexels, commercial-free Mixkit clips and Unsplash. Sources and licences are recorded in `MEDIA-CREDITS.md`. Stock subjects are not presented as actual staff, clients or endorsements. Videos are remote CDN assets, load near the viewport and provide explicit playback controls; automatic playback honours reduced motion and page visibility.
 Fonts: DM Sans and Manrope via Google Fonts, with system fallbacks.
+
+Reduced-motion and Save Data preferences keep video posters visible without automatically attaching remote video sources. Explicit Play remains available. A JavaScript-disabled visitor receives a short branded explanation rather than an empty page.
 
 ## Demo boundaries
 
