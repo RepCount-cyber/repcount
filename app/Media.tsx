@@ -46,6 +46,10 @@ export default function Film({clip='home', className='', controls=true, priority
   const asset=media[clip];
   const element=useRef<HTMLVideoElement>(null);
   const wrapper=useRef<HTMLDivElement>(null);
+  const playButton=useRef<HTMLButtonElement>(null);
+  const retryButton=useRef<HTMLButtonElement>(null);
+  const restoreRetryFocus=useRef(false);
+  const restoreErrorFocus=useRef(false);
   const manualPause=useRef(false);
   const explicitPlay=useRef(false);
   const playRequest=useRef(0);
@@ -104,7 +108,17 @@ export default function Film({clip='home', className='', controls=true, priority
     if(!el.getAttribute('src')){el.src=asset.src;el.load();}
     await playSafely();
   }
-  function retry(){setError(false);element.current?.load();void toggle();}
+  useEffect(()=>{
+    if(error&&restoreErrorFocus.current&&retryButton.current){
+      retryButton.current.focus({preventScroll:true});
+      restoreErrorFocus.current=false;
+    }
+    if(!error&&restoreRetryFocus.current&&playButton.current){
+      playButton.current.focus({preventScroll:true});
+      restoreRetryFocus.current=false;
+    }
+  },[error]);
+  function retry(){restoreRetryFocus.current=true;setError(false);element.current?.load();void toggle();}
   return <div className={`rc-film ${className}`} ref={wrapper} data-clip={clip}>
     <video ref={element} src={loaded?asset.src:undefined} poster={asset.poster} muted playsInline loop preload="metadata" data-priority={priority||undefined} aria-label={`${asset.title} — illustrative stock video`}
       onLoadedMetadata={e=>{setDuration(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0);setError(false);synchronize.current();}}
@@ -112,11 +126,11 @@ export default function Film({clip='home', className='', controls=true, priority
       onEmptied={()=>{setTime(0);setDuration(0);setPlaying(false);setWaiting(false);setError(false);}}
       onPlaying={()=>{setPlaying(true);setWaiting(false);}}
       onWaiting={()=>setWaiting(true)} onPause={()=>{setPlaying(false);setWaiting(false);}}
-      onError={()=>{setError(true);setWaiting(false);}}/>
+      onError={()=>{restoreErrorFocus.current=!!wrapper.current?.contains(document.activeElement);setError(true);setWaiting(false);}}/>
     <div className="rc-film-shade"/>
     {caption&&<span className="rc-film-caption">{caption}</span>}
-    {error?<div className="rc-film-error" role="status"><span>This video couldn’t load.</span><button onClick={retry} aria-label={`Retry ${asset.title}`}>Try again <Icon name="arrow" size={16}/></button></div>:<>
-      <button className="rc-film-toggle" onClick={toggle} aria-label={`${playing?'Pause':'Play'} ${asset.title}`}><Icon name={playing?'pause':'play'} size={18}/></button>
+    {error?<div className="rc-film-error" role="status"><span>This video couldn’t load.</span><button ref={retryButton} onClick={retry} aria-label={`Retry ${asset.title}`}>Try again <Icon name="arrow" size={16}/></button></div>:<>
+      <button ref={playButton} className="rc-film-toggle" onClick={toggle} aria-label={`${playing?'Pause':'Play'} ${asset.title}`}><Icon name={playing?'pause':'play'} size={18}/></button>
       {waiting&&loaded&&<span className="rc-film-loading" role="status">Loading video…</span>}
       {controls&&<div className="rc-film-controls"><span>{timestamp(time)}</span><input type="range" aria-label={`Seek ${asset.title}`} min={0} max={duration||1} step={.1} value={Math.min(time,duration||1)} disabled={!duration} onChange={e=>{if(element.current)element.current.currentTime=Number(e.target.value);}}/><span>{timestamp(duration)}</span></div>}
     </>}

@@ -1,6 +1,6 @@
 "use client";
 
-import {useId, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import Brand from './Brand';
 import Film, {Icon, media} from './Media';
 
@@ -34,6 +34,16 @@ export default function Experience({onEnter}:{onEnter:()=>void}) {
   const [checkin,setCheckin]=useState(false);
   const [feeling,setFeeling]=useState('Steady');
   const [note,setNote]=useState(false);
+  const energyChoices=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(!checkin)return;
+    const frame=requestAnimationFrame(()=>{
+      const choice=energyChoices.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]');
+      choice?.focus({preventScroll:true});
+      choice?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+    });
+    return()=>cancelAnimationFrame(frame);
+  },[checkin]);
   const uid=useId();
   const numbers=period==='Week'?[20,25,0,30,0,25,0]:[90,105,85,120];
   const total=numbers.reduce((sum,n)=>sum+n,0);
@@ -72,14 +82,14 @@ export default function Experience({onEnter}:{onEnter:()=>void}) {
               <div className="rc-stat-total"><strong>{total}<small>min</small></strong><span>Movement this {period.toLowerCase()}</span></div>
               <div className="rc-training-chart" key={period} role="img" aria-label={`${period} sample minutes: ${numbers.join(', ')}`}>{numbers.map((n,i)=><div key={i}><span>{n||'—'}</span><i style={{height:`${n/Math.max(...numbers)*95+3}px`,animationDelay:`${i*40}ms`}}/><small>{period==='Week'?['M','T','W','T','F','S','S'][i]:`W${i+1}`}</small></div>)}</div>
               <div className="rc-stat-pair"><div><small>SESSIONS</small><strong>{period==='Week'?'4':'16'}</strong><span>Completed</span></div><div><small>CONSISTENCY</small><strong>80<em>%</em></strong><span>{period==='Week'?'4 of 5 planned':'16 of 20 planned'}</span></div></div>
-              <div className="rc-water"><span><Icon name="sun" size={17}/><b>Water logged</b><small>{water} glasses</small></span><button aria-label="Add a glass of water to sample log" onClick={()=>setWater(water+1)}><Icon name="plus" size={16}/></button></div>
+              <div className="rc-water"><span><Icon name="sun" size={17}/><b>Water logged</b><small role="status" aria-live="polite" aria-atomic="true">{water} glasses</small></span><button aria-label="Add a glass of water to sample log" onClick={()=>setWater(previous=>previous+1)}><Icon name="plus" size={16}/></button></div>
               <p className="rc-phone-footnote">Illustrative statistics, not measured health data.</p>
             </>}
             {section==='connect'&&<>
               <div className="rc-screen-title"><small>A PERSON IN YOUR CORNER</small><h3>Let’s check in.</h3><p>Weekly trainer support</p></div>
               <Film clip="coach" className="rc-phone-film rc-coach-film" caption="COACHING, FROM HOME"/>
               <div className="rc-coach-note"><span>RC</span><div><small>SAMPLE COACH CONVERSATION</small><p>How did this week feel? Let’s make next week work for you.</p></div></div>
-              {!checkin?<button className="rc-phone-action" onClick={()=>setCheckin(true)}>Preview a check-in<Icon name="arrow" size={16}/></button>:<div className="rc-checkin-inline"><span>How is your energy?</span><div>{['Low','Steady','Good'].map(value=><button key={value} className={feeling===value?'active':''} aria-pressed={feeling===value} onClick={()=>{setFeeling(value);setNote(false);}}>{value}</button>)}</div><button className="rc-phone-action" onClick={()=>setNote(true)}>Save sample check-in <Icon name="check" size={16}/></button></div>}
+              {!checkin?<button className="rc-phone-action" onClick={()=>setCheckin(true)}>Preview a check-in<Icon name="arrow" size={16}/></button>:<div className="rc-checkin-inline"><span>How is your energy?</span><div ref={energyChoices} role="group" aria-label="Your energy">{['Low','Steady','Good'].map(value=><button key={value} className={feeling===value?'active':''} aria-pressed={feeling===value} onClick={()=>{setFeeling(value);setNote(false);}}>{value}</button>)}</div><button className="rc-phone-action" onClick={()=>setNote(true)}>Save sample check-in <Icon name="check" size={16}/></button></div>}
               <p className="rc-phone-footnote" role="status">{note?`${feeling} — saved for this preview only. Nothing was sent.`:'Illustrative footage and conversation. No live call or message.'}</p>
             </>}
           </div>
