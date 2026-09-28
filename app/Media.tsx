@@ -78,7 +78,13 @@ export default function Film({clip='home', className='', controls=true, priority
     const pause=()=>{++playRequest.current;el.pause();};
     const sync=()=>{
       const allowed=explicitPlay.current||(!motion.matches&&!connection?.saveData);
-      if(!allowed)setLoaded(false);
+      if(!allowed){
+        pause();
+        setLoaded(false);
+        // Removing src alone leaves the previous media resource selected.
+        // Reset it once so restricted preferences actually stop its loading.
+        if(el.hasAttribute('src')){el.removeAttribute('src');el.load();}
+      }
       else if(nearby)setLoaded(true);
       if(visible&&!document.hidden&&allowed&&!manualPause.current) {
         void playSafely();
@@ -103,6 +109,7 @@ export default function Film({clip='home', className='', controls=true, priority
     <video ref={element} src={loaded?asset.src:undefined} poster={asset.poster} muted playsInline loop preload="metadata" data-priority={priority||undefined} aria-label={`${asset.title} — illustrative stock video`}
       onLoadedMetadata={e=>{setDuration(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0);setError(false);synchronize.current();}}
       onTimeUpdate={e=>setTime(e.currentTarget.currentTime)}
+      onEmptied={()=>{setTime(0);setDuration(0);setPlaying(false);setWaiting(false);setError(false);}}
       onPlaying={()=>{setPlaying(true);setWaiting(false);}}
       onWaiting={()=>setWaiting(true)} onPause={()=>{setPlaying(false);setWaiting(false);}}
       onError={()=>{setError(true);setWaiting(false);}}/>
