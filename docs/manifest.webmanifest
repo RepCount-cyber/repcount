@@ -1,7 +1,6 @@
 {
   "name": "RepCount",
   "short_name": "RepCount",
-  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
