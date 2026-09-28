@@ -164,3 +164,14 @@
 
 .rc-member .sidebar .brand>.rc-brand{display:inline-flex}
 .rc-member .member-empty-row td{padding:30px 18px;text-align:center;color:#686b60;font-size:13px;white-space:normal;line-height:1.7;background:#f8f5ee}
+
+/* Secondary member screens: readable labels on their actual tinted surfaces. */
+.rc-member .day-strip small{font-size:10px;line-height:1.35;color:#565c50}
+.rc-member .day-strip button.selected small{color:#fff;opacity:1}
+.rc-member .member-care-intro>div>p,.rc-member .member-care-intro .small-note,.rc-member .programme-hero .meta{color:#565c50}
+.rc-member .client-name>.avatar{color:#565c50}
+@media(max-width:700px){
+ .rc-member .day-strip{display:flex;overflow-x:auto;gap:8px;padding-bottom:9px;scroll-padding-inline:2px;-webkit-overflow-scrolling:touch}
+ .rc-member .day-strip button{flex:0 0 76px;min-width:76px;padding:11px 7px;font-size:11px}
+ .rc-member .day-strip small{display:block;font-size:10px;margin-top:5px}
+}

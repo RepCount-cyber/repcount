@@ -50,7 +50,8 @@ export default function Film({clip='home', className='', controls=true, priority
   const explicitPlay=useRef(false);
   const playRequest=useRef(0);
   const synchronize=useRef<()=>void>(()=>{});
-  const [loaded,setLoaded]=useState(priority);
+  // Wait for browser preferences before attaching any remote video source.
+  const [loaded,setLoaded]=useState(false);
   const [playing,setPlaying]=useState(false);
   const [waiting,setWaiting]=useState(false);
   const [error,setError]=useState(false);
@@ -71,18 +72,24 @@ export default function Film({clip='home', className='', controls=true, priority
     const wrap=wrapper.current;
     if(!el||!wrap)return;
     let visible=false;
+    let nearby=false;
     const motion=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const connection=(navigator as Navigator & {connection?:EventTarget & {saveData?:boolean}}).connection;
+    const pause=()=>{++playRequest.current;el.pause();};
     const sync=()=>{
-      if(visible&&!document.hidden&&(!motion.matches||explicitPlay.current)&&!manualPause.current) {
+      const allowed=explicitPlay.current||(!motion.matches&&!connection?.saveData);
+      if(!allowed)setLoaded(false);
+      else if(nearby)setLoaded(true);
+      if(visible&&!document.hidden&&allowed&&!manualPause.current) {
         void playSafely();
-      } else {++playRequest.current;el.pause();}
+      } else {pause();}
     };
     synchronize.current=sync;
-    const near=new IntersectionObserver(entries=>{if(entries[0].isIntersecting){setLoaded(true);near.disconnect();}},{rootMargin:'200px'});
+    const near=new IntersectionObserver(entries=>{nearby=entries[0].isIntersecting;sync();},{rootMargin:'200px'});
     const view=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting&&entries[0].intersectionRatio>=.25;sync();},{threshold:[0,.25,.75]});
     near.observe(wrap);view.observe(wrap);
-    document.addEventListener('visibilitychange',sync);motion.addEventListener('change',sync);
-    return()=>{near.disconnect();view.disconnect();document.removeEventListener('visibilitychange',sync);motion.removeEventListener('change',sync);synchronize.current=()=>{};++playRequest.current;el.pause();};
+    document.addEventListener('visibilitychange',sync);motion.addEventListener('change',sync);connection?.addEventListener('change',sync);
+    return()=>{near.disconnect();view.disconnect();document.removeEventListener('visibilitychange',sync);motion.removeEventListener('change',sync);connection?.removeEventListener('change',sync);synchronize.current=()=>{};pause();};
   },[clip,playSafely]);
   async function toggle(){
     const el=element.current;if(!el)return;
@@ -93,7 +100,7 @@ export default function Film({clip='home', className='', controls=true, priority
   }
   function retry(){setError(false);element.current?.load();void toggle();}
   return <div className={`rc-film ${className}`} ref={wrapper} data-clip={clip}>
-    <video ref={element} src={loaded?asset.src:undefined} poster={asset.poster} muted playsInline loop preload={priority?'auto':'metadata'} aria-label={`${asset.title} — illustrative stock video`}
+    <video ref={element} src={loaded?asset.src:undefined} poster={asset.poster} muted playsInline loop preload="metadata" data-priority={priority||undefined} aria-label={`${asset.title} — illustrative stock video`}
       onLoadedMetadata={e=>{setDuration(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0);setError(false);synchronize.current();}}
       onTimeUpdate={e=>setTime(e.currentTarget.currentTime)}
       onPlaying={()=>{setPlaying(true);setWaiting(false);}}
