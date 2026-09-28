@@ -4,6 +4,9 @@ export const metadata: Metadata = {
   title: "RepCount — Stronger, in your own space.",
   description: "Personal home training, thoughtful wellbeing support and everyday progress. An interactive preview of RepCount’s proposed India pilot.",
   robots: { index: false, follow: false },
+  applicationName: "RepCount",
+  manifest: "./manifest.webmanifest",
+  icons: {icon: "./repcount-mark.svg", apple: "./apple-touch-icon.png"},
   openGraph: {
     title: "RepCount — Stronger, in your own space.",
     description: "Personal training. Thoughtful support. Explore the interactive RepCount preview.",
