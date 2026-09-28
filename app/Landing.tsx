@@ -44,7 +44,12 @@ export default function Landing({onEnter}:{onEnter:()=>void}) {
    return()=>document.removeEventListener('keydown',closeMenu);
  },[menu]);
  function start(){returnFocus.current=document.activeElement as HTMLElement;setStep(0);setMenu(false);setQuiz(true);}
- function scrollToExperience(){document.getElementById('experience')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}
+ function scrollToExperience(){
+   const target=document.getElementById('experience-heading');
+   target?.setAttribute('tabindex','-1');
+   target?.focus({preventScroll:true});
+   document.getElementById('experience')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+ }
  function enter(){setQuiz(false);onEnter();}
  const quizChoices=step===0?['Build strength','Build a consistent routine','Feel more confident exercising']:step===1?['At home','At a gym','A mix of both']:['2 days','3 days','4 days'];
  const selected=step===0?goal:step===1?place:days;
