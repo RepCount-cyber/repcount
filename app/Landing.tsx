@@ -14,7 +14,7 @@ const questions=[
  ['Can I train at home?','Yes. The programme is planned around online coaching, with workouts adapted to your available space and equipment. Home, gym or a mix can be discussed with your trainer.'],
  ['What happens in the wellbeing conversation?','The pilot includes an initial psychologist onboarding session. You agree what practical guidance may be shared with your trainer. Private counselling notes stay separate from general training records; ongoing therapy is not a confirmed programme inclusion.'],
  ['Are personalised diet plans included?','The meal-planning screens are a preview. Nutrition support and professional responsibility are still being finalised, so personalised nutrition plans are not currently part of the confirmed pilot package.'],
- ['How do I pay for the pilot?','The proposed price is AED 250 for 30 days. Payment is manual and verified by the team. The India collection currency and payment method will be confirmed before enrolment. This preview does not collect payments.'],
+ ['How do I pay for the pilot?','The proposed price is AED 299 for 30 days. Payment is manual and verified by the team. The India collection currency and payment method will be confirmed before enrolment. This preview does not collect payments.'],
  ['Can I join or book a consultation here?','This is an interactive design preview, so you can explore the plan, videos and member experience with sample information. Real enrolment, secure accounts and appointments are not open on this site yet.'],
 ];
 
