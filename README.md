@@ -33,6 +33,6 @@ Reduced-motion and Save Data preferences keep video posters visible without auto
 
 ## Demo boundaries
 
-The programme describes a proposed India adults-only pilot at AED 250 for 30 days, with psychologist onboarding and weekly trainer follow-ups. Proposed provider availability is unconfirmed. Nutrition scope and payment collection currency remain open.
+The programme describes a proposed India adults-only pilot at AED 299 for 30 days, with psychologist onboarding and weekly trainer follow-ups. Proposed provider availability is unconfirmed. Nutrition scope and payment collection currency remain open.
 
 Before real client use, implement authenticated accounts, server-side roles, secure durable storage, scheduling, manual-payment verification and consent-based professional handoffs. Private psychological notes must remain outside general trainer/admin records. Brand availability has not been checked.
