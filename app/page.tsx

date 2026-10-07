@@ -1,0 +1,70 @@
+import {useSyncExternalStore, useEffect, useRef, useState} from 'react';
+import {wrap} from 'react-dom';
+import './app.css';
+
+const seed=[
+  {name:"Maya R.",initials:"MR",stage:"Payment review",trainer:"Unassigned",paid:false,progress:0},
+  {name:"Riya K.",initials:"RK",stage:"Onboarding",trainer:"Unassigned",paid:true,progress:0},
+  {name:"Kabir M.",initials:"KM",stage:"Check-in due",trainer:"Akif",paid:true,progress:50},
+];
+export default function Home() {
+  const hash=useSyncExternalStore(subscribeToHash,readHash,()=>"");
+  const memberView=memberViewFromHash(hash);
+  const landing=memberView===null;
+  const view=memberView??"overview";
+  const [day,setDay]=useState(5);
+  const [done,setDone]=useState<number[]>([]);
+  const [workout,setWorkout]=useState(false);
+  const [finished,setFinished]=useState(false);
+  const [feedback,setFeedback]=useState("");
+  const [checkin,setCheckin]=useState(false);
+  const [energy,setEnergy]=useState("Steady");
+  const [draftEnergy,setDraftEnergy]=useState("Steady");
+  const [planFit,setPlanFit]=useState("Manageable");
+  const [draftPlanFit,setDraftPlanFit]=useState("Manageable");
+  const [booking,setBooking]=useState("Friday, 23 Oct · 6:00 PM IST");
+  const [slot,setSlot]=useState(booking);
+  const [modal,setModal]=useState<Modal>(null);
+  const [notice,setNotice]=useState("");
+  const [clients,setClients]=useState(seed);
+  const [filter,setFilter]=useState("All clients");
+  const [query,setQuery]=useState("");
+  const [payment,setPayment]=useState(false);
+  const [paymentReference,setPaymentReference]=useState("DEMO-299");
+  const [draftPaymentReference,setDraftPaymentReference]=useState("DEMO-299");
+  const dialog=useRef<HTMLDialogElement>(null);
+  const heading=useRef<HTMLHeadingElement>(null);
+  const dayStrip=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(view!=="plan")return;
+    const frame=requestAnimationFrame(()=>{
+      const strip=dayStrip.current;
+      const selected=strip?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]');
+      if(!strip||!selected)return;
+      const viewport=strip.getBoundingClientRect();
+      const item=selected.getBoundingClientRect();
+      if(item.right>viewport.right){
+        strip.scrollTo({left:strip.scrollLeft+item.right-viewport.right+4,behavior:"instant"});
+      }else if(item.left<viewport.left){
+        strip.scrollTo({left:Math.max(0,strip.scrollLeft+item.left-viewport.left-4),behavior:"instant"});
+      }
+    });
+    return()=>cancelAnimationFrame(frame);
+  },[view,day]);
+  const previousHash=useRef<string|null>(null);
+  useEffect(()=>{
+    const previous=previousHash.current;
+    previousHash.current=hash;
+    const currentMember=memberViewFromHash(hash);
+    if(previous===hash||(previous===null&&!currentMember))return;
+    const frame=requestAnimationFrame(()=>{
+      if(currentMember){
+        window.scrollTo({top:0,behavior:"instant"});
+        heading.current?.focus({preventScroll:true});
+      }else if(previous!==null&&memberViewFromHash(previous)){
+        const anchor=hash?document.getElementById(hash.slice(1)):null;
+        if(anchor)anchor.scrollIntoView({behavior:"instant"});
+        else window.scrollTo({top:0,behavior:"instant"});
+        document.querySelector<HTMLHeadingElement>("main h1")?.focus({preventScroll:true});
+      }
+    });

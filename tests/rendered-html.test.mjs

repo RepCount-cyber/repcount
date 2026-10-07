@@ -1,0 +1,13 @@
+test('pilot preserves confirmed scope and distinguishes future services', async () => {
+ const text = readableText(await productionHomepage());
+ assert.match(text, /AED\s*299\s*\/\s*30 days/);
+ assert.match(text, /10\s+adults in the\s+first India cohort/);
+ assert.match(text, /Adults 18\+/);
+ assert.match(text, /Initial psychologist onboarding session/);
+ assert.match(text, /Weekly trainer follow-ups/);
+ assert.match(text, /Manual payment, verified by the team/);
+ assert.match(text, /personalised nutrition plans are not currently part of the confirmed pilot package/);
+ assert.match(text, /ongoing therapy is not a confirmed programme inclusion/);
+ assert.match(text, /No live enrolment,\s*payments or appointments/);
+ assert.doesNotMatch(text, /guaranteed (?:weight loss|results|transformation)|cures? depression|lose \d+\s*(?:kg|pounds)/i);
+});
