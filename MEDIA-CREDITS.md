@@ -1,20 +1,8 @@
-# RepCount media credits
 
-Media is illustrative. Stock subjects are not represented as RepCount staff, clients, testimonials or endorsements. Remote images/video are embedded from the source CDNs. No competitor assets are used.
+## Hero video (home session + coach inset)
+| Slot | Clip | Source | Licence |
+|---|---|---|---|
+| Main hero | "A Man Looking at a Laptop While Stretching" (6326950) | https://www.pexels.com/video/a-man-looking-at-a-laptop-while-stretching-6326950/ | Pexels License (commercial use OK) |
+| Coach inset | Woman talking to camera while exercising (6446270) | https://www.pexels.com/video/woman-talking-while-exercising-7901189/ | Pexels License (commercial use OK) |
 
-| Use | Creator / source | Asset and licence |
-| --- | --- | --- |
-| Main home-training film; member dashboard | MART PRODUCTION / Pexels | [Woman exercising at home, 8837215](https://www.pexels.com/video/woman-exercising-at-home-8837215/) · [Pexels licence](https://www.pexels.com/license/) |
-| Hero home client image | Pexels | [Man stretching while watching a laptop, 6598980](https://www.pexels.com/photo/a-man-in-white-shirt-stretching-his-body-on-the-floor-while-looking-at-the-laptop-6598980/) · Pexels licence |
-| Illustrative online instructor inset | Kampus Production / Pexels | [Man demonstrating squats on camera, 8173471](https://www.pexels.com/photo/a-tattooed-man-doing-squats-while-facing-the-camera-8173471/) · Pexels licence |
-| Interactive phone strength film | MART PRODUCTION / Pexels | [Woman exercising at home, 8026946](https://www.pexels.com/video/woman-exercising-at-home-8026946/) · Pexels licence |
-| Home-training editorial photograph | Gustavo Fring / Pexels | [Portrait of a woman working out, 6496088](https://www.pexels.com/photo/portrait-of-a-woman-working-out-6496088/) · Pexels licence |
-| Consultation photograph | SHVETS production / Pexels | [Consultation, 7176320](https://www.pexels.com/photo/concentrated-female-psychologist-consulting-patient-in-office-7176320/) · Pexels licence |
-| Online yoga photograph | Tim Samuel / Pexels | [Online yoga class, 6697252](https://www.pexels.com/photo/woman-doing-online-yoga-class-6697252/) · Pexels licence |
-| Home coach film | Mixkit | [Physical education teacher recording a class, 5055](https://mixkit.co/free-stock-video/physical-education-teacher-recording-a-class-5055/) · Individual page confirms commercial use under [Stock Video Free Licence](https://mixkit.co/license/) |
-| Home cardio film | Mixkit | [Young sportsman jumping rope at home, 5050](https://mixkit.co/free-stock-video/young-sportsman-jumping-rope-at-home-5050/) · Individual page confirms commercial use under Stock Video Free Licence |
-| Meal-planning preview | Anna Pelzer / Unsplash | [Food photograph](https://unsplash.com/photos/IGfIGP5ONV0) · [Unsplash licence](https://unsplash.com/license) |
-
-The new hero client and instructor photographs returned HTTP 200 on 8 October 2026. The inset is an illustrative stock view, not a live call or RepCount trainer. Other video clips remain available and include playback controls. CDN availability can change; playback failure presents a retry control. The old shirtless gym footage is retired from the rendered experience.
-
-Brand artwork is original SVG. Fonts are DM Sans and Manrope from Google Fonts; fallbacks remain available if remote fonts fail.
+Illustrative stock footage only; people shown are not RepCount staff or clients.

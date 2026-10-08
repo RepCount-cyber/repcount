@@ -57,3 +57,14 @@
 @media(max-width:900px){.rc-hero-chip{display:none}}
 @media(max-width:600px){.rc-hero-chip{display:none}}
 .rc-brand .rc-brand-mark{width:1.1em;height:1.18em;filter:drop-shadow(0 .04em .05em #e5193740)}
+/* Hero video: man at home + coach inset */
+.rc-hero-client-scene>.rc-film{position:absolute;inset:0;width:100%;height:100%}
+.rc-hero-client-scene .rc-hero-film--man video{object-position:50% 62%!important}
+.rc-hero-client-scene>.rc-film .rc-film-toggle{top:auto;bottom:14px;left:16px;right:auto}
+.rc-online-coach-preview{pointer-events:auto}
+.rc-online-coach-preview .rc-film{position:absolute;inset:0;width:100%;height:100%;background:#263026}
+.rc-online-coach-preview .rc-hero-film--trainer video{object-position:50% 30%!important}
+.rc-online-coach-preview .rc-film-shade{display:none}
+.rc-online-coach-preview .rc-film-toggle{top:5px;bottom:auto;left:5px;right:auto;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;transform:none}
+.rc-online-coach-preview .rc-film-toggle svg{width:12px;height:12px}
+.rc-online-coach-preview span{z-index:3}
