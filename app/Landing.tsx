@@ -8,6 +8,8 @@ import './landing-premium.css';
 import './accessibility-polish.css';
 
 const homePhoto='https://images.pexels.com/photos/6496088/pexels-photo-6496088.jpeg?auto=compress&cs=tinysrgb&w=1000';
+const heroClientPhoto='https://images.pexels.com/photos/6598980/pexels-photo-6598980.jpeg?auto=compress&cs=tinysrgb&w=1200';
+const heroTrainerPhoto='https://images.pexels.com/photos/8173471/pexels-photo-8173471.jpeg?auto=compress&cs=tinysrgb&w=600';
 const warmPhoto='https://images.pexels.com/photos/6697252/pexels-photo-6697252.jpeg?auto=compress&cs=tinysrgb&w=800';
 const questions=[
  ['Is this for me if I’m just starting out?','The first pilot is for adults in India. Your goals, experience, available space and equipment are discussed before a trainer finalises your plan. You don’t have to arrive with a perfect routine.'],
@@ -18,7 +20,7 @@ const questions=[
  ['Can I join or book a consultation here?','This is an interactive design preview, so you can explore the plan, videos and member experience with sample information. Real enrolment, secure accounts and appointments are not open on this site yet.'],
 ];
 
-export default function Landing({onEnter}:{onEnter:()=>void}) {
+export default function Landing({onEnter,onLogin}:{onEnter:()=>void;onLogin:()=>void}) {
  const [menu,setMenu]=useState(false);
  const [quiz,setQuiz]=useState(false);
  const [step,setStep]=useState(0);
@@ -61,14 +63,14 @@ export default function Landing({onEnter}:{onEnter:()=>void}) {
      <a href="#rc-top" aria-label="RepCount home"><Brand/></a>
      <nav id="rc-main-menu" className={menu?'rc-main-nav open':'rc-main-nav'} aria-label="Main navigation">
        {[['#experience','The experience'],['#support','Your support'],['#programme','Programme & price'],['#questions','Questions']].map(([link,label])=><a href={link} key={link} onClick={()=>setMenu(false)}>{label}</a>)}
-       <button className="rc-mobile-member" onClick={onEnter}>Member demo <Icon name="diagonal" size={16}/></button>
+       <button className="rc-mobile-member" onClick={onLogin}>Log in <Icon name="diagonal" size={16}/></button>
      </nav>
-     <div className="rc-header-actions"><button className="rc-member-link" onClick={onEnter}>Member demo <Icon name="diagonal" size={15}/></button><button className="rc-button rc-small" onClick={start}>Find your starting point <Icon name="arrow" size={17}/></button><button className="rc-menu" aria-label={menu?'Close menu':'Open menu'} aria-expanded={menu} aria-controls="rc-main-menu" onClick={()=>setMenu(!menu)}><Icon name={menu?'close':'menu'} size={25}/></button></div>
+     <div className="rc-header-actions"><button className="rc-member-link" onClick={onLogin}>Log in <Icon name="diagonal" size={15}/></button><button className="rc-button rc-small" onClick={start}>Find your starting point <Icon name="arrow" size={17}/></button><button className="rc-menu" aria-label={menu?'Close menu':'Open menu'} aria-expanded={menu} aria-controls="rc-main-menu" onClick={()=>setMenu(!menu)}><Icon name={menu?'close':'menu'} size={25}/></button></div>
    </header>
    <main id="rc-main">
      <section className="rc-hero">
        <div className="rc-hero-copy"><p className="rc-eyebrow"><span/> PERSONAL COACHING. REAL LIFE.</p><h1 tabIndex={-1}>Stronger,<br/>in your<br/><em>own space.</em></h1><p>Your own workout plan. A weekly trainer check-in. Thoughtful support to help you build a routine that fits your life.</p><div className="rc-hero-actions"><button className="rc-button" onClick={start}>Find your starting point <Icon name="diagonal"/></button><button className="rc-play-link" onClick={scrollToExperience}><span><Icon name="play" size={16}/></span>See it in action</button></div><div className="rc-hero-promise"><Icon name="home" size={17}/><span>At home. At your pace. With you.</span></div></div>
-       <div className="rc-hero-visual"><div className="rc-hero-film-wrap"><Film key={heroClip} clip={heroClip} controls={false} priority className="rc-hero-film" caption="A LITTLE TIME. JUST FOR YOU."/><div className="rc-hero-film-switch" role="group" aria-label="Choose home coaching video"><button className={heroClip==='flow'?'active':''} onClick={()=>setHeroClip('flow')} aria-pressed={heroClip==='flow'}>Move at home</button><button className={heroClip==='coach'?'active':''} onClick={()=>setHeroClip('coach')} aria-pressed={heroClip==='coach'}>Coach from home</button></div></div><div className="rc-hero-phone"><MiniPhone onExplore={scrollToExperience}/></div><div className="rc-hero-caption"><span className="rc-round-arrow"><Icon name="diagonal" size={20}/></span><p>A plan in your pocket.<br/><b>A person in your corner.</b></p></div></div>
+       <div className="rc-hero-visual"><div className="rc-hero-film-wrap">{heroClip==='flow'?<div className="rc-hero-client-scene"><img src={heroClientPhoto} alt="Man stretching at home while following guidance on a laptop"/><span className="rc-film-caption">TRAIN AT HOME. GUIDED ONLINE.</span><div className="rc-online-coach-preview" aria-label="Illustrative online trainer preview"><img src={heroTrainerPhoto} alt="Trainer demonstrating an exercise for a camera"/><span><i/> COACH VIEW · ILLUSTRATIVE</span></div></div>:<Film key="coach" clip="coach" controls={false} priority className="rc-hero-film" caption="YOUR COACH, WHEREVER YOU ARE."/>}<div className="rc-hero-film-switch" role="group" aria-label="Choose home coaching scene"><button className={heroClip==='flow'?'active':''} onClick={()=>setHeroClip('flow')} aria-pressed={heroClip==='flow'}>Home session</button><button className={heroClip==='coach'?'active':''} onClick={()=>setHeroClip('coach')} aria-pressed={heroClip==='coach'}>Watch a coach</button></div></div><div className="rc-hero-chip rc-hero-chip--plan" aria-hidden="true"><span><Icon name="check" size={15}/></span><p><b>Today’s plan</b><small>Home strength · 20 min</small></p></div><div className="rc-hero-chip rc-hero-chip--coach" aria-hidden="true"><span><Icon name="chat" size={15}/></span><p><b>Weekly coach follow-up</b><small>Sample preview</small></p></div><div className="rc-hero-phone"><MiniPhone onExplore={scrollToExperience}/></div><div className="rc-hero-caption"><span className="rc-round-arrow"><Icon name="diagonal" size={20}/></span><p>A plan in your pocket.<br/><b>A person in your corner.</b></p></div></div>
      </section>
      <div className="rc-belief-strip"><span>MORE THAN A WORKOUT</span><div><Icon name="move"/>Personal training</div><div><Icon name="heart"/>Thoughtful support</div><div><Icon name="chart"/>Everyday momentum</div><a href="#support">The RepCount approach <Icon name="arrow" size={16}/></a></div>
      <Experience onEnter={onEnter}/>

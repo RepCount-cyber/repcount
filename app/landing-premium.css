@@ -33,3 +33,27 @@
 /* The mobile hero gives the human scene room to breathe. */
 @media(max-width:680px){.rc-header{height:68px}.rc-hero{padding-top:27px;gap:25px}.rc-hero-copy .rc-eyebrow{margin-bottom:15px}.rc-hero h1{font-size:55px;line-height:1.02}.rc-hero-copy>p:not(.rc-eyebrow){margin-top:17px;line-height:1.65}.rc-hero-actions{margin-top:20px}.rc-hero-promise{margin-top:14px}.rc-hero-visual{min-height:465px}.rc-hero-phone{left:0;bottom:0}.rc-mini-phone{width:168px;padding:15px 10px 7px;border-width:4px;border-radius:28px}.rc-mini-phone .rc-brand--phone{font-size:16px}.rc-site .rc-mini-hello{font-size:14px;margin:12px 0 10px}.rc-mini-photo{height:85px}.rc-mini-session b{font-size:8px}.rc-mini-week{padding-top:10px}.rc-mini-week i{width:17px;height:17px}.rc-mini-week>div{gap:3px}.rc-mini-week>b{font-size:8px}.rc-mini-phone>button{font-size:8px;min-height:37px}.rc-hero-film-switch{flex-direction:row;right:13px;bottom:18px;max-width:180px;padding:3px}.rc-hero-film-switch button{font-size:7px;min-height:34px;padding:8px}.rc-hero-caption{right:3px;max-width:140px}}
 @media(max-width:380px){.rc-hero h1{font-size:49px}.rc-hero-visual{min-height:450px}.rc-mini-phone{width:155px}.rc-mini-photo{height:75px}.rc-mini-week i{width:15px;height:15px}.rc-mini-status{font-size:6px}.rc-mini-phone>button{font-size:7px}.rc-hero-caption{max-width:105px}.rc-hero-film-switch{max-width:150px}.rc-hero-film-switch button{font-size:6px}}
+/* The inset is an illustrative coach view, never a live-call claim. */
+.rc-hero-client-scene{position:absolute;inset:0;background:#a9ae9b}
+.rc-hero-client-scene>img{display:block;width:100%;height:100%;object-fit:cover;object-position:54% center}
+.rc-hero-client-scene:after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(transparent,#16221c82);pointer-events:none}
+.rc-hero-client-scene>.rc-film-caption{z-index:2;top:35px;left:auto;right:24px}
+.rc-online-coach-preview{position:absolute;z-index:3;top:102px;right:24px;width:clamp(126px,13vw,176px);aspect-ratio:4/3;border:4px solid #f8f6ef;border-radius:15px;overflow:hidden;background:#263026;box-shadow:0 14px 36px #10191266;pointer-events:none}
+.rc-online-coach-preview img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+.rc-online-coach-preview span{position:absolute;left:0;right:0;bottom:0;padding:11px 7px 7px;background:linear-gradient(transparent,#111d18db);color:white;font-size:7px;letter-spacing:.6px;text-align:center;white-space:nowrap}
+.rc-online-coach-preview i{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--rc-red);vertical-align:1px;margin-right:3px}
+@media(max-width:680px){.rc-online-coach-preview{top:100px;right:13px;width:115px;border-width:3px;border-radius:10px}.rc-online-coach-preview span{font-size:5px;padding:10px 3px 5px}}
+@media(max-width:380px){.rc-online-coach-preview{top:95px;right:9px;width:102px}}
+
+/* Oct 2026 hero polish: floating plan/coach chips, stronger caption legibility, bolder red R */
+.rc-hero-client-scene:before{content:"";position:absolute;inset:0 0 62%;background:linear-gradient(#16221c80,transparent);pointer-events:none;z-index:1}
+.rc-hero-chip{position:absolute;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px 10px 10px;background:#fffdf8f2;border:1px solid #ffffffb0;border-radius:16px;box-shadow:0 16px 38px #14201a38;backdrop-filter:blur(10px);pointer-events:none}
+.rc-hero-chip>span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--rc-red);color:#fff;flex:0 0 auto}
+.rc-hero-chip p{margin:0;display:grid;gap:2px;font-size:11px;line-height:1.2;color:var(--rc-ink)}
+.rc-hero-chip b{font-weight:700}
+.rc-hero-chip small{font-size:9px;color:#6c7560;letter-spacing:.2px}
+.rc-hero-chip--plan{right:22px;top:41%}
+.rc-hero-chip--coach{right:22px;bottom:172px}
+@media(max-width:900px){.rc-hero-chip{display:none}}
+@media(max-width:600px){.rc-hero-chip{display:none}}
+.rc-brand .rc-brand-mark{width:1.1em;height:1.18em;filter:drop-shadow(0 .04em .05em #e5193740)}

@@ -29,7 +29,7 @@ test('production opens public coaching with an optional member demo', async () =
 
 test('pilot preserves confirmed scope and distinguishes future services', async () => {
  const text = readableText(await productionHomepage());
- assert.match(text, /AED\s*250\s*\/\s*30 days/);
+ assert.match(text, /AED\s*299\s*\/\s*30 days/);
  assert.match(text, /10\s+adults in the\s+first India cohort/);
  assert.match(text, /Adults 18\+/);
  assert.match(text, /Initial psychologist onboarding session/);
