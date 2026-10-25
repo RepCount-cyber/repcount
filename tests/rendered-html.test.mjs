@@ -1,17 +1,42 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { readFile } from 'node:fs/promises';
+import test, { before, after } from 'node:test';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { SignJWT } from 'jose';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
+// Runs against `next start` on a free port, so the proxy, layouts and server actions are exercised for real.
+const SESSION_SECRET = 'test-secret-'.padEnd(48, 'x');
+let server;
+let baseUrl;
+// Each run gets a throwaway database so local data is never touched.
+const dataDir = mkdtempSync(join(tmpdir(), 'repcount-test-'));
+const DATABASE_PATH = join(dataDir, 'test.db');
+before(async () => {
+ const port = await new Promise(resolve => { const s = createServer(); s.listen(0, () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+ baseUrl = `http://127.0.0.1:${port}`;
+ server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {env: {...process.env, SESSION_SECRET, DATABASE_PATH}, stdio: 'ignore'});
+ for (let i = 0; i < 100; i++) {
+  try { await fetch(baseUrl + '/'); return; } catch { await new Promise(r => setTimeout(r, 100)); }
+ }
+ throw new Error('next start did not respond');
+});
+after(() => { server?.kill(); rmSync(dataDir, {recursive: true, force: true}); });
 
 let rendered;
 function productionHomepage() {
  rendered ??= (async () => {
-  const { default: worker } = await import('../dist/server/index.js');
-  const response = await worker.fetch(new Request('https://repcount.example/', {headers:{accept:'text/html'}}), {ASSETS:{fetch:async()=>new Response('Not found',{status:404})}}, {waitUntil(){},passThroughOnException(){}});
+  const response = await fetch(baseUrl + '/', {headers:{accept:'text/html'}});
   assert.equal(response.status,200);
   return response.text();
  })();
  return rendered;
 }
+const sessionCookie = async (userId, role, secret = SESSION_SECRET) => 'rc_session=' + await new SignJWT({userId, role, expiresAt: new Date(Date.now() + 864e5).toISOString()}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1d').sign(new TextEncoder().encode(secret));
+const visit = (path, cookie) => fetch(baseUrl + path, {redirect:'manual', headers: cookie ? {cookie} : {}});
 const markupOnly = html => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
 const readableText = html => markupOnly(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -83,8 +108,58 @@ test('videos offer silent inline playback, posters and labelled controls', async
  assert.ok(ranges.some(input => /aria-label="Seek [^"]+"/i.test(input)), 'Product video needs an accessible timeline');
 });
 
-test('demo has no persistent storage bindings', async()=>{
- const config=JSON.parse(await readFile(new URL('../.openai/hosting.json',import.meta.url),'utf8'));
- assert.equal(config.d1,null);
- assert.equal(config.r2,null);
+test('protected areas send signed-out visitors to login', async () => {
+ for (const path of ['/member/overview', '/trainer', '/admin']) {
+  const response = await visit(path);
+  assert.equal(response.status, 307, path);
+  assert.match(response.headers.get('location'), /\/login$/);
+ }
+ const login = await visit('/login');
+ assert.equal(login.status, 200);
+ const html = await login.text();
+ assert.match(html, /name="email"/);
+ assert.match(html, /name="password"/);
+ assert.doesNotMatch(html, /Member#2026|Admin#2026/, 'Production login must not list demo passwords by default');
+});
+
+test('each role reaches only its own dashboard', async () => {
+ const member = await sessionCookie('u-member-aarav', 'member');
+ const trainer = await sessionCookie('u-trainer-akif', 'trainer');
+ const admin = await sessionCookie('u-admin', 'admin');
+ const page = await visit('/member/overview', member);
+ assert.equal(page.status, 200);
+ assert.match(readableText(await page.text()), /Aarav Sharma/);
+ assert.equal((await visit('/admin', member)).headers.get('location')?.endsWith('/member/overview'), true);
+ assert.equal((await visit('/member/plan', trainer)).headers.get('location')?.endsWith('/trainer'), true);
+ assert.match(readableText(await (await visit('/trainer', trainer)).text()), /TRAINER WORKSPACE/);
+ assert.match(readableText(await (await visit('/admin', admin)).text()), /SUPER ADMIN/);
+ assert.equal((await visit('/login', admin)).headers.get('location')?.endsWith('/admin'), true);
+ assert.equal((await visit('/member/unknown', member)).status, 404);
+});
+
+test('forged or mismatched sessions are rejected', async () => {
+ const forged = await sessionCookie('u-admin', 'admin', 'not-the-real-secret'.padEnd(48, 'y'));
+ assert.match((await visit('/admin', forged)).headers.get('location') ?? '', /\/login$/);
+ const wrongRole = await sessionCookie('u-member-aarav', 'admin');
+ const response = await visit('/admin', wrongRole);
+ assert.equal(response.status, 307, 'A role claim that does not match the stored user must not open the admin area');
+ assert.match(response.headers.get('location') ?? '', /\/login$/);
+});
+
+test('live data drives the public price and the trainer’s check-in queue', async () => {
+ await productionHomepage(); // creates and seeds the database
+ const db = new DatabaseSync(DATABASE_PATH);
+ db.prepare("update settings set value = ? where key = ?").run('INR', 'currency');
+ db.prepare("update settings set value = ? where key = ?").run('7999', 'price');
+ db.prepare("update clients set stage = 'Check-in due', checkin_note = ? where id = 'c-aarav'").run('Energy low · i need shorter sessions');
+ db.close();
+ const home = readableText(await (await fetch(baseUrl + '/')).text());
+ assert.match(home, /INR\s*7,999\s*\/\s*30 days/);
+ const trainer = readableText(await (await visit('/trainer', await sessionCookie('u-trainer-akif', 'trainer'))).text());
+ assert.match(trainer, /Energy low · i need shorter sessions/);
+ assert.doesNotMatch(trainer, /Maya R\./, 'Trainers must only receive clients assigned to them');
+ const reset = new DatabaseSync(DATABASE_PATH);
+ reset.prepare("update settings set value = ? where key = ?").run('AED', 'currency');
+ reset.prepare("update settings set value = ? where key = ?").run('299', 'price');
+ reset.close();
 });

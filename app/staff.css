@@ -1,0 +1,26 @@
+/* Trainer and super admin workspaces build on the member shell. */
+@media(min-width:701px){.rc-staff .sidebar>.brand{display:block}}
+.rc-staff .metrics{margin-top:0}
+.rc-staff .rc-staff-hero{position:relative;border-radius:18px;overflow:hidden;min-height:240px;margin-bottom:24px;background:#3b3a33}
+.rc-staff .rc-staff-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%}
+.rc-staff .rc-staff-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(19,20,17,.78),rgba(19,20,17,.1) 70%)}
+.rc-staff .rc-staff-hero>div{position:relative;z-index:1;padding:34px;color:#fff;display:flex;flex-direction:column;gap:10px;justify-content:flex-end;min-height:240px}
+.rc-staff .rc-staff-hero span{font-size:9px;letter-spacing:1.6px;color:#ffb3bf;font-weight:700}
+.rc-staff .rc-staff-hero h2{font-family:Georgia,serif;font-weight:400;font-size:clamp(24px,2.6vw,34px);line-height:1.15;letter-spacing:-.6px}
+.rc-staff .rc-staff-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.rc-staff .rc-staff-list li{display:flex;align-items:center;gap:14px;padding:14px;border:1px solid #e9e5dd;border-radius:12px;flex-wrap:wrap}
+.rc-staff .rc-staff-list li>div{flex:1;min-width:180px;display:flex;flex-direction:column;gap:3px}
+.rc-staff .rc-staff-list small{color:#7b7b72}
+.rc-staff .rc-staff-empty{color:#54733c;font-weight:600}
+.rc-staff .rc-staff-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:18px 0;align-items:end}
+.rc-staff .rc-staff-settings>label,.rc-staff .rc-staff-settings>div{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid #e9e5dd;border-radius:12px;background:#fbf9f4}
+.rc-staff .rc-staff-settings span{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#868279}
+.rc-staff .rc-staff-settings input,.rc-staff .rc-staff-settings select{min-height:44px;padding:0 12px;border:1px solid #d8dece;border-radius:8px;background:#fffdf8;font-size:16px;font-weight:600;color:#252822}
+.rc-staff .rc-staff-settings b{font-size:14px;min-height:44px;display:flex;align-items:center}
+.rc-staff .rc-staff-settings>button{min-height:52px;justify-content:center}
+.rc-staff .rc-staff-note{font-style:italic;color:#4b4a43!important}
+.rc-staff .rc-staff-activity{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.rc-staff .rc-staff-activity li{display:grid;grid-template-columns:160px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid #e9e5dd;border-radius:10px;font-size:13px}
+.rc-staff .rc-staff-activity time{font-size:11px;color:#868279}
+@media(max-width:700px){.rc-staff .rc-staff-activity li{grid-template-columns:1fr}}
+.rc-staff .team-card progress{width:100%;margin-top:10px}

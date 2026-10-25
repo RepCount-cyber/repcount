@@ -1,5 +1,6 @@
 "use client";
 
+import Photo from './Photo';
 import {useEffect, useId, useRef, useState} from 'react';
 import Brand from './Brand';
 import Film, {Icon, media} from './Media';
@@ -18,7 +19,7 @@ export function MiniPhone({onExplore}:{onExplore:()=>void}) {
     <div className="rc-phone-island"/><div className="rc-mini-status"><span>9:41</span><span aria-hidden="true">▂▄▆ ▰</span></div>
     <Brand variant="phone"/>
     <p className="rc-mini-hello">A little time.<br/><strong>Just for you.</strong></p>
-    <div className="rc-mini-photo"><img src={media.home.poster} alt="Woman exercising in her living room"/><span><Icon name="play" size={15}/> YOUR HOME SESSION</span></div>
+    <div className="rc-mini-photo"><Photo src={media.home.poster} alt="Woman exercising in her living room"/><span><Icon name="play" size={15}/> YOUR HOME SESSION</span></div>
     <div className="rc-mini-session"><div><b>Everyday strength</b><span>20 min · At home</span></div><Icon name="diagonal" size={18}/></div>
     <div className="rc-mini-week"><span>YOUR SAMPLE WEEK</span><b>3 of 4 sessions</b><div>{['M','T','W','T','F','S','S'].map((d,i)=><i key={i} className={i<3?'done':''}>{i<3?<Icon name="check" size={11}/>:d}</i>)}</div></div>
     <button onClick={onExplore}>Try the experience <Icon name="arrow" size={14}/></button><div className="rc-phone-home"/>
@@ -72,7 +73,7 @@ export default function Experience({onEnter}:{onEnter:()=>void}) {
             {section==='nourish'&&<>
               <div className="rc-screen-title"><small>YOUR DAILY NOURISHMENT</small><h3>Good food. Your way.</h3><p>Meal planning concept</p></div>
               <div className="rc-segment" role="group" aria-label="Meal preference">{['Balanced','Vegetarian'].map(value=><button key={value} aria-pressed={meal===value} className={meal===value?'active':''} onClick={()=>setMeal(value)}>{value}</button>)}</div>
-              <div className="rc-meal-photo"><img src={food} loading="lazy" alt="Colourful bowl of fresh vegetables"/><span><Icon name="leaf" size={14}/> LUNCH IN COLOUR</span></div>
+              <div className="rc-meal-photo"><Photo src={food} alt="Colourful bowl of fresh vegetables" sizes="(max-width: 700px) 100vw, 40vw"/><span><Icon name="leaf" size={14}/> LUNCH IN COLOUR</span></div>
               <div className="rc-meals">{[['08:00','A gentle start','Oats, fruit & yoghurt'],['13:00','A colourful lunch',meal==='Vegetarian'?'Vegetables, lentils & rice':'Vegetables, rice & protein'],['19:30','Your evening plate','A meal that fits your routine']].map(([time,title,detail])=><div key={time}><span>{time}</span><div><b>{title}</b><small>{detail}</small></div><Icon name="check" size={13}/></div>)}</div>
               <p className="rc-phone-footnote">Illustrative meals. Nutrition service and professional review are being finalised.</p>
             </>}

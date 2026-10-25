@@ -1,6 +1,8 @@
 "use client";
 
-import {useState} from 'react';
+import Photo from './Photo';
+import {useEffect,useRef,useState} from 'react';
+import type {NutritionState} from '@/lib/memberState';
 import {Icon} from './Media';
 import {NutritionBalance} from './Tracker';
 import './nutrition.css';
@@ -21,11 +23,16 @@ const meals:Record<Preference,Meal[]> = {
   ],
 };
 
-export default function Nutrition(){
-  const [preference,setPreference]=useState<Preference>('Balanced');
+export default function Nutrition({initial,onChange}:{initial:NutritionState;onChange:(state:NutritionState)=>void}){
+  const [preference,setPreference]=useState<Preference>(initial.preference as Preference);
   const [day,setDay]=useState(0);
-  const [logged,setLogged]=useState<string[]>([]);
-  const [water,setWater]=useState<Record<number,number>>({});
+  const [logged,setLogged]=useState<string[]>(initial.logged);
+  const [water,setWater]=useState<Record<number,number>>(initial.water);
+  const changed=useRef(false);
+  useEffect(()=>{
+    if(!changed.current){changed.current=true;return;}
+    onChange({preference,logged,water});
+  },[preference,logged,water,onChange]);
   const sampleMeals=meals[preference];
   const mealKey=(index:number)=>`${day}-${preference}-${index}`;
   const completed=sampleMeals.filter((_,index)=>logged.includes(mealKey(index))).length;
@@ -38,8 +45,8 @@ export default function Nutrition(){
   }
   return <div className="member-nutrition">
     <section className="member-nutrition-intro">
-      <div><span className="eyebrow">NUTRITION CONCEPT · SAMPLE MEALS</span><h2>Good food.<br/><em>A little less guesswork.</em></h2><p>Explore how a simple meal schedule could fit alongside your training. Choose a sample preference, try the meal log and make it your own for this visit.</p><div className="member-nutrition-scope"><Icon name="leaf" size={18}/><span>Personalised nutrition support is not a confirmed pilot inclusion. These examples are not an individual diet plan.</span></div></div>
-      <figure><img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=85" alt="An illustrative bowl of colourful vegetables" loading="lazy"/><figcaption>Illustrative food · <a href="https://unsplash.com/photos/IGfIGP5ONV0" target="_blank" rel="noreferrer">Anna Pelzer / Unsplash</a></figcaption></figure>
+      <div><span className="eyebrow">NUTRITION CONCEPT · SAMPLE MEALS</span><h2>Good food.<br/><em>A little less guesswork.</em></h2><p>Explore how a simple meal schedule could fit alongside your training. Choose a sample preference, try the meal log and make it your own — it saves as you go.</p><div className="member-nutrition-scope"><Icon name="leaf" size={18}/><span>Personalised nutrition support is not a confirmed pilot inclusion. These examples are not an individual diet plan.</span></div></div>
+      <figure><Photo src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=85" alt="An illustrative bowl of colourful vegetables"/><figcaption>Illustrative food · <a href="https://unsplash.com/photos/IGfIGP5ONV0" target="_blank" rel="noreferrer">Anna Pelzer / Unsplash</a></figcaption></figure>
     </section>
     <section className="member-nutrition-controls" aria-label="Choose a sample meal schedule">
       <div><span className="eyebrow">YOUR SAMPLE PREFERENCE</span><div className="member-nutrition-options" role="group" aria-label="Meal preference">{(['Balanced','Vegetarian'] as Preference[]).map(item=><button key={item} aria-pressed={preference===item} onClick={()=>setPreference(item)}>{item}{preference===item&&<Icon name="check" size={15}/>}</button>)}</div></div>

@@ -4,23 +4,46 @@ Interactive demo of a mobile-friendly online fitness coaching service.
 
 ## Try it
 
-Client views include a daily overview, a guided sample workout, a nutrition concept with meal and water logs, progress, weekly check-ins, the proposed support team and membership. Programme describes the 30-day pilot. Staff demo includes a sample roster, search, trainer assignment and payment verification.
+`/` is the public homepage. `/login` signs in members, trainers and the super admin, and each role lands on its own area:
 
-All client records are fictional. Changes last for the current page visit only. No actual messages, bookings, payments or enrolments are submitted. Staff switching is a preview control, not authentication.
+| Role | Area | Demo account (development only) |
+|---|---|---|
+| Member | `/member/overview` (plan, nutrition, progress, team, membership) | `member@repcount.demo` / `Member#2026` |
+| Trainer | `/trainer` (today, my clients, check-ins) | `trainer@repcount.demo` / `Trainer#2026` |
+| Super admin | `/admin` (overview, clients & payments, trainers, settings) | `admin@repcount.demo` / `Admin#2026` |
 
-Member views support direct links such as `#member/nutrition` and normal browser Back/Forward navigation. A web manifest and original home-screen icons give supported browsers a consistent saved-site identity; offline operation is not provided.
+Signed-out visitors are sent to `/login`; signed-in users who open another role's area are sent back to their own.
+
+## Data
+
+Everything is saved in a local SQLite database (`data/repcount.db`, created and seeded on first run, ignored by git) using Node's built-in `node:sqlite`:
+
+- Members: daily tracker, workout progress, weekly check-in, booking, payment reference and meal log save automatically ("All changes saved" in the top bar). Daily entries start fresh each day and weekly ones each week (India time).
+- Trainers see only their assigned clients, including the member's latest check-in, and mark check-ins reviewed.
+- The super admin verifies payments, assigns trainers and edits price, currency and cohort size; the homepage and membership page use the live price.
+- Every staff action is written to an audit log shown on the admin overview.
+
+Delete `data/repcount.db` to reset to the sample cohort. Set `DATABASE_PATH` to store it elsewhere. SQLite suits a single Node server; for serverless hosting or real clients, move these tables to Neon Postgres (`ACCOUNT-SETUP.md`).
+
+## Authentication
+
+- Credentials are checked by a server action (`app/actions/auth.ts`) against salted scrypt hashes (`lib/users.ts`), with a 5-failures-per-15-minutes limit per email and IP.
+- Success sets a signed (HS256), httpOnly, SameSite=Lax session cookie for 7 days (`lib/session.ts`).
+- `proxy.ts` redirects early; every protected layout re-checks the session and role on the server (`lib/dal.ts`).
+- Demo accounts are listed on the login page outside production builds, or when `SHOW_DEMO_ACCOUNTS=true`.
+- Before real clients: replace `lib/users.ts` with the Neon-backed store in `ACCOUNT-SETUP.md`, add invitation and password reset, and move the attempt limiter to a shared store.
 
 ## Development
 
 - Node.js 22.13 or newer.
 - `npm ci`
+- `cp .env.example .env.local` and set `SESSION_SECRET` (32+ random characters).
 - `npm run dev` for the local app.
-- `npm run build:pages` for GitHub Pages output in `docs/`.
-- `npm run build` for the optional Cloudflare-compatible worker build.
-- `npm test` to build and check rendered output.
-- `npx tsc --noEmit` for type checking.
+- `npm run build` and `npm start` for a production server.
+- `npm test` builds, starts the production server and checks rendered pages and role access.
+- `npm run typecheck` for type checking.
 
-GitHub Pages serves `docs/` from the main branch. Asset URLs are relative to support repository hosting and a future custom domain. Run `npm run build:pages` and commit the updated `docs/` when changing the site; the build emits `.nojekyll` automatically. The original branded share image is included in the page metadata.
+Hosting needs a long-running Node.js server with a persistent disk for the SQLite file (for example Render with a disk, Railway or a VPS); serverless platforms such as Vercel need the Neon database first. GitHub Pages cannot run the login, so the old static `docs/` build has been removed.
 
 ## Design
 
@@ -35,4 +58,4 @@ Reduced-motion and Save Data preferences keep video posters visible without auto
 
 The programme describes a proposed India adults-only pilot at AED 299 for 30 days, with psychologist onboarding and weekly trainer follow-ups. Proposed provider availability is unconfirmed. Nutrition scope and payment collection currency remain open.
 
-Before real client use, implement authenticated accounts, server-side roles, secure durable storage, scheduling, manual-payment verification and consent-based professional handoffs. Private psychological notes must remain outside general trainer/admin records. Brand availability has not been checked.
+Before real client use, connect durable storage for profiles, plans, check-ins and payments, add invitation-based account creation, scheduling and consent-based professional handoffs. Private psychological notes must remain outside general trainer/admin records. Brand availability has not been checked.

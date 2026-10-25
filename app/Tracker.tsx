@@ -3,10 +3,11 @@
 import {useId, useState} from "react";
 import type {CSSProperties, ReactNode} from "react";
 import {Icon} from "./Media";
+import type {MemberState} from "@/lib/memberState";
 import "./tracker.css";
 
 /* ------------------------------------------------------------------ */
-/* Sample data. Everything here is fictional and lives in memory only. */
+/* Sample history and targets. Today's entries are saved per member.   */
 /* ------------------------------------------------------------------ */
 
 export const palette = {red: "#e51937", ink: "#292d26", sage: "#7d8f6b", clay: "#d9a47f", lilac: "#9b8fb8", mist: "#c9cdbf"};
@@ -38,14 +39,14 @@ function upsertToday(points: Point[], value: number): Point[] {
   return [...points, {label: "Today", value: rounded}];
 }
 
-export function useTracker() {
-  const [water, setWater] = useState(3);
-  const [steps, setSteps] = useState(4280);
-  const [sleep, setSleep] = useState<number | null>(null);
-  const [mood, setMood] = useState<Mood | null>(null);
-  const [trained, setTrained] = useState(false);
-  const [weights, setWeights] = useState<Point[]>(baseWeights);
-  const [fats, setFats] = useState<Point[]>(baseFats);
+export function useTracker(initial?: MemberState["tracker"]) {
+  const [water, setWater] = useState(initial?.water ?? 3);
+  const [steps, setSteps] = useState(initial?.steps ?? 4280);
+  const [sleep, setSleep] = useState<number | null>(initial?.sleep ?? null);
+  const [mood, setMood] = useState<Mood | null>((initial?.mood as Mood | null) ?? null);
+  const [trained, setTrained] = useState(initial?.trained ?? false);
+  const [weights, setWeights] = useState<Point[]>(initial?.weights ?? baseWeights);
+  const [fats, setFats] = useState<Point[]>(initial?.fats ?? baseFats);
   const checks = [water > 0, steps > 0, sleep !== null, mood !== null, trained];
   const done = checks.filter(Boolean).length;
   const todayLevel = Math.min(3, Math.round((done / 5) * 3));
@@ -191,7 +192,7 @@ export function DailyTracker({t, onProgress}: {t: Tracker; onProgress?: () => vo
       </div>
     </div>
     {onProgress && <button className="text-button" onClick={onProgress}>See all progress charts <span><Icon name="arrow" size={16}/></span></button>}
-    <p className="tk-note">Sample tracker. Entries last for this visit only and nothing is sent or stored.</p>
+    <p className="tk-note">Entries save to your account automatically and start fresh each day.</p>
   </section>;
 }
 
@@ -361,7 +362,7 @@ export function JourneyTimeline({weekly}: {weekly: number}) {
 
 /* ------------------------------ staff view ---------------------------- */
 
-type StaffClient = {name: string; stage: string; paid: boolean; progress: number; trainer: string};
+export type StaffClient = {name: string; stage: string; paid: boolean; progress: number; trainer: string};
 export function StaffInsights({clients}: {clients: StaffClient[]}) {
   const stages = ["Active", "Onboarding", "Check-in due", "Payment review"];
   const colors = [palette.sage, palette.lilac, palette.clay, palette.red];
@@ -370,13 +371,13 @@ export function StaffInsights({clients}: {clients: StaffClient[]}) {
   const avg = clients.length ? Math.round(clients.reduce((s, c) => s + c.progress, 0) / clients.length) : 0;
   const trainers = ["Akif", "Unassigned"].map(n => ({label: n, value: clients.filter(c => (n === "Akif" ? c.trainer !== "Unassigned" : c.trainer === "Unassigned")).length}));
   return <section className="card tk-panel tk-wide" aria-labelledby="tk-staff-title">
-    <span className="eyebrow">COHORT SNAPSHOT · SAMPLE DATA</span><h2 id="tk-staff-title">How the cohort is doing.</h2>
+    <span className="eyebrow">COHORT SNAPSHOT</span><h2 id="tk-staff-title">How the cohort is doing.</h2>
     <div className="tk-grid-3 tk-inner">
       <div><h3>Where clients are</h3><Donut label="Clients by stage" centerBig={String(clients.length)} centerSmall="clients" slices={stageSlices}/></div>
       <div><h3>Weekly workout completion</h3><BarChart label="Weekly completion per client" unit="percent" color={palette.sage} bars={clients.map(c => ({label: c.name.split(" ")[0], value: c.progress, planned: 100}))} format={n => `${n}%`}/><p className="tk-caption">Cohort average <b>{avg}%</b></p></div>
       <div><h3>Payments &amp; coverage</h3><Donut label="Payments verified" centerBig={`${paid}/${clients.length}`} centerSmall="verified" slices={[{label: "Verified", value: paid, color: palette.sage}, {label: "Awaiting review", value: clients.length - paid, color: palette.red}]}/>
         <Donut label="Trainer assignment" centerBig={`${trainers[0].value}/${clients.length}`} centerSmall="assigned" slices={[{label: "Assigned", value: trainers[0].value, color: palette.lilac}, {label: "Unassigned", value: trainers[1].value, color: palette.mist}]}/></div>
     </div>
-    <p className="tk-note">Fictional records for a preview. This is not authentication and no real client or psychological data is held here.</p>
+    <p className="tk-note">Sample cohort records. Private psychological notes are never shown in staff views.</p>
   </section>;
 }

@@ -23,8 +23,12 @@
       ]
     },
     "types": [
-      "@cloudflare/workers-types",
       "node"
+    ],
+    "plugins": [
+      {
+        "name": "next"
+      }
     ]
   },
   "include": [
@@ -36,8 +40,6 @@
     "**/*.mts"
   ],
   "exclude": [
-    "node_modules",
-    "docs",
-    "dist"
+    "node_modules"
   ]
 }

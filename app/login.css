@@ -3,3 +3,14 @@
 @media(max-width:700px){.rc-login-header{min-height:83px;padding:20px}.rc-login-header .rc-brand{font-size:26px}.rc-login-back{font-size:11px!important;gap:7px}.rc-login-layout{display:flex;flex-direction:column;padding:12px 22px 30px!important;gap:30px;max-width:490px!important}.rc-login-panel{order:0;max-width:none;padding:0}.rc-login-intro h1{font-size:57px;margin:18px 0}.rc-login-intro h1 br{display:none}.rc-login-intro h1 em:before{content:' '}.rc-login-intro>p{font-size:14px}.rc-login-story{order:1;min-height:340px;border-radius:65px 15px 15px 15px}.rc-login-story>img{object-position:center 42%}.rc-login-story-copy{bottom:40px;left:25px}.rc-login-story-copy h2{font-size:30px;letter-spacing:-1px;margin:12px 0}.rc-login-story-copy>p{font-size:12px;max-width:245px}.rc-login-story-tags{display:none}.rc-login-story-top{top:20px;right:17px;font-size:8px}.rc-login-story-copy>span{font-size:8px}.rc-login-photo-note{bottom:15px;font-size:8px}.rc-login-footer{padding:20px;flex-wrap:wrap;gap:9px;font-size:10px}}
 .rc-login-field-gap{height:20px}.rc-login-form .rc-login-spaced-label{margin-top:20px}.rc-login-form label>span{font-weight:400;color:#616857}.rc-login-form-note{font-size:12px;line-height:1.7;color:#555f49;margin:14px 0 0}
 @media(prefers-reduced-motion:reduce){.rc-login *{scroll-behavior:auto!important;transition:none!important}}
+.rc-login-error{padding:12px 14px;margin-bottom:16px;border-radius:10px;background:#fdecec;border:1px solid #f4c4c9;color:#a3122a;font-size:13px;font-weight:600}
+.rc-login-form input[aria-invalid="true"]{border-color:#e51937}
+.rc-login-demo-list{display:grid;gap:8px}
+.rc-login-demo-list button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:11px 14px;background:#fffdf8;border:1px solid #dfe0d6;border-radius:9px;text-align:left;cursor:pointer;color:#252822}
+.rc-login-demo-list button:hover{border-color:#e51937}
+.rc-login-demo-list b{font-size:13px}
+.rc-login-demo-list small{font-size:11px;color:#6b7262}
+.rc-login-form input:not(:disabled){background:#fffdf8;color:#252822;cursor:text}
+.rc-login-form input:not(:disabled):focus{outline:2px solid #e51937;outline-offset:1px;border-color:#e51937}
+.rc-login-submit:not(:disabled){cursor:pointer!important;background:#e51937;color:#fff}
+.rc-login-submit:not(:disabled):hover{background:#bf1230}
