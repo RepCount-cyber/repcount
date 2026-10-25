@@ -12,7 +12,9 @@ type DatabaseSync = Database;
  * Suits local development and a single Node server. For serverless hosting or real clients,
  * move these tables to the Neon Postgres project described in ACCOUNT-SETUP.md.
  */
-const path = process.env.DATABASE_PATH || join(/*turbopackIgnore: true*/ process.cwd(), "data", "repcount.db");
+// Vercel's filesystem is read-only except /tmp, which is per-instance and cleared on cold starts.
+const path = process.env.DATABASE_PATH
+  || (process.env.VERCEL ? "/tmp/repcount.db" : join(/*turbopackIgnore: true*/ process.cwd(), "data", "repcount.db"));
 
 const globalForDb = globalThis as unknown as {repcountDb?: DatabaseSync};
 

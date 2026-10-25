@@ -43,7 +43,7 @@ Delete `data/repcount.db` to reset to the sample cohort. Set `DATABASE_PATH` to 
 - `npm test` builds, starts the production server and checks rendered pages and role access.
 - `npm run typecheck` for type checking.
 
-Hosting needs a long-running Node.js server with a persistent disk for the SQLite file (for example Render with a disk, Railway or a VPS); serverless platforms such as Vercel need the Neon database first. GitHub Pages cannot run the login, so the old static `docs/` build has been removed.
+Hosting needs a long-running Node.js server with a persistent disk for the SQLite file (for example Render with a disk, Railway or a VPS); on Vercel the database falls back to `/tmp`, which resets on cold starts and is not shared between instances, so treat Vercel as a demo until the Neon database is connected. Required environment variables: `SESSION_SECRET` (32+ random characters); optional: `SITE_URL`, `SHOW_DEMO_ACCOUNTS`, `DATABASE_PATH`. GitHub Pages cannot run the login, so the old static `docs/` build has been removed.
 
 ## Design
 
