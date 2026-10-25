@@ -19,7 +19,7 @@ const quotes = [
   ["Small reps add up to big change.", "RepCount"],
 ];
 
-export default function Motivation({streak, weekly, onTrain}: {streak: number; weekly: number; onTrain: () => void}) {
+export default function Motivation({streak, goalReached, onTrain}: {streak: number; goalReached: boolean; onTrain: () => void}) {
   const [quote, setQuote] = useState(0);
   const [text, source] = quotes[quote];
   const nextMilestone = streak < 7 ? 7 : streak < 14 ? 14 : 30;
@@ -44,7 +44,7 @@ export default function Motivation({streak, weekly, onTrain}: {streak: number; w
       <blockquote aria-live="polite"><p>{text}</p><footer>— {source}</footer></blockquote>
       <div className="rc-quote-actions">
         <button className="button outline" onClick={() => setQuote((quote + 1) % quotes.length)}>Another boost <span><Icon name="arrow" size={16}/></span></button>
-        <button className="button dark" onClick={onTrain}>{weekly >= 4 ? "Review this week’s session" : "Start today’s session"} <span><Icon name="diagonal" size={16}/></span></button>
+        <button className="button dark" onClick={onTrain}>{goalReached ? "Review this week’s session" : "Start today’s session"} <span><Icon name="diagonal" size={16}/></span></button>
       </div>
     </div>
   </section>;

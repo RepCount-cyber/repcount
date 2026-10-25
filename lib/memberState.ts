@@ -4,7 +4,7 @@ export type MemberState = {
   day: string;
   weekStart: string;
   tracker: {water: number; steps: number; sleep: number | null; mood: string | null; trained: boolean; weights: Point[]; fats: Point[]};
-  workout: {done: number[]; finished: boolean; feedback: string};
+  workout: {done: number[]; finished: boolean; feedback: string; completedDays: number[]};
   checkin: {submitted: boolean; energy: string; planFit: string};
   booking: string | null;
   payment: {submitted: boolean; reference: string};
@@ -29,7 +29,7 @@ export function defaultMemberState(day: string, weekStart: string): MemberState 
   return {
     day, weekStart,
     tracker: {water: 3, steps: 4280, sleep: null, mood: null, trained: false, weights: baseWeights, fats: baseFats},
-    workout: {done: [], finished: false, feedback: ""},
+    workout: {done: [], finished: false, feedback: "", completedDays: []},
     checkin: {submitted: false, energy: "Steady", planFit: "Manageable"},
     booking: null,
     payment: {submitted: false, reference: "DEMO-299"},
@@ -70,6 +70,7 @@ export function sanitizeMemberState(input: unknown, day: string, weekStart: stri
       done: Array.isArray(w.done) ? [...new Set(w.done.filter((i): i is number => Number.isInteger(i) && i >= 0 && i < 5))] : [],
       finished: w.finished === true,
       feedback: pick(w.feedback, feedbacks, ""),
+      completedDays: Array.isArray(w.completedDays) ? [...new Set(w.completedDays.filter((i): i is number => Number.isInteger(i) && i >= 0 && i < 7))] : [],
     },
     checkin: {submitted: c.submitted === true, energy: pick(c.energy, energies, "Steady"), planFit: pick(c.planFit, planFits, "Manageable")},
     booking: typeof input.booking === "string" ? input.booking.slice(0, 60) : null,

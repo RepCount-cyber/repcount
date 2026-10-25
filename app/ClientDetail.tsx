@@ -1,0 +1,95 @@
+"use client";
+
+import {useTransition, useState} from "react";
+import Link from "next/link";
+import {Icon} from "./Media";
+import {LineChart, palette} from "./Tracker";
+import {activityLabels} from "./StaffApp";
+import {assignTrainer, verifyPayment} from "./actions/data";
+import type {ClientDetail as Detail} from "@/lib/store";
+import {dayNames, formatTime} from "@/lib/schedule";
+
+const exerciseNames = ["Easy warm-up", "Chair squat", "Wall push-up", "Standing calf raise", "Gentle cool-down"];
+const formatDate = (iso: string | null) => iso ? new Date(`${iso.length === 10 ? iso + "T00:00:00Z" : iso.replace(" ", "T") + "Z"}`).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"}) : "—";
+
+/** Admin view of one client: profile, membership, coaching, saved progress and history. */
+export default function ClientDetail({detail, trainerNames}: {detail: Detail; trainerNames: string[]}) {
+  const {client: c, state, history, lastSaved, plan} = detail;
+  const [pending, startTransition] = useTransition();
+  const [notice, setNotice] = useState("");
+  const [noticeError, setNoticeError] = useState(false);
+  const run = (action: () => Promise<{ok?: string; error?: string}>) => startTransition(async () => {
+    const result = await action();
+    setNoticeError(!result.ok);
+    setNotice(result.ok ?? result.error ?? "");
+  });
+  const weights = state?.tracker.weights ?? [];
+  const latestWeight = weights.at(-1)?.value;
+  const weightChange = latestWeight !== undefined && weights[0] ? Math.round((latestWeight - weights[0].value) * 10) / 10 : null;
+
+  return <>
+    <Link className="rc-back-link" href="/admin?tab=clients">← All clients</Link>
+    <div className="page-heading rc-detail-heading">
+      <div className="rc-detail-identity"><span className="large-avatar">{c.initials}</span><div><p className="eyebrow">CLIENT PROFILE</p><h1 tabIndex={-1}>{c.name}</h1><p>{c.goal} · joined {formatDate(c.joinedOn)}</p></div></div>
+      <span className="pill">{c.stage}</span>
+    </div>
+    {notice && <div className={noticeError ? "notice notice-error" : "notice"} role={noticeError ? "alert" : "status"}>{notice}<button onClick={() => setNotice("")} aria-label="Dismiss notification"><Icon name="close" size={18}/></button></div>}
+
+    <div className="three-grid metrics">
+      <section className="card"><span className="eyebrow">Weekly progress</span><strong>{c.progress}%</strong></section>
+      <section className="card"><span className="eyebrow">Last workout</span><strong className="rc-detail-small">{c.lastWorkout}</strong></section>
+      <section className="card"><span className="eyebrow">Next check-in</span><strong className="rc-detail-small">{c.nextCheckIn}</strong></section>
+    </div>
+
+    <div className="two-grid equal rc-detail-grid">
+      <section className="card"><h2>Contact &amp; account</h2><dl className="rc-detail-list">
+        <div><dt>Email</dt><dd>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : "—"}</dd></div>
+        <div><dt>Phone</dt><dd>{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`}>{c.phone}</a> : "—"}</dd></div>
+        <div><dt>Client ID</dt><dd>{c.id}</dd></div>
+        <div><dt>Member login</dt><dd>{c.userId ? "Active account" : "Not invited yet"}</dd></div>
+        <div><dt>Last saved activity</dt><dd>{lastSaved ? `${lastSaved.slice(0, 16)} UTC` : "—"}</dd></div>
+      </dl></section>
+
+      <section className="card"><h2>Membership &amp; coaching</h2><dl className="rc-detail-list">
+        <div><dt>Payment</dt><dd>{c.paid ? <span className="paid">Verified ✓</span> : <button className="small-button" disabled={pending} onClick={() => run(() => verifyPayment(c.id))}>Verify {c.reference ?? "payment"}</button>}</dd></div>
+        <div><dt>Payment reference</dt><dd>{c.reference ?? "—"}</dd></div>
+        <div><dt>Trainer</dt><dd><select aria-label={`Trainer for ${c.name}`} value={c.trainer} disabled={pending} onChange={e => {const trainer = e.target.value; run(() => assignTrainer(c.id, trainer));}}><option>Unassigned</option>{trainerNames.map(n => <option key={n}>{n}</option>)}</select></dd></div>
+        <div><dt>Latest check-in</dt><dd>{c.checkinNote ? `“${c.checkinNote}”` : "—"}</dd></div>
+        <div><dt>Check-in call link</dt><dd>{c.meetingUrl ? <a href={c.meetingUrl} target="_blank" rel="noopener noreferrer">{c.meetingUrl}</a> : "Not set by trainer"}</dd></div>
+      </dl></section>
+    </div>
+
+    {state ? <>
+      <div className="section-heading"><h2>This week, from the member’s app</h2><span>SAVED AUTOMATICALLY</span></div>
+      <div className="two-grid equal rc-detail-grid">
+        <section className="card"><h2>Today’s tracker</h2><dl className="rc-detail-list rc-detail-two">
+          <div><dt>Water</dt><dd>{state.tracker.water} glasses</dd></div>
+          <div><dt>Steps</dt><dd>{state.tracker.steps.toLocaleString("en-IN")}</dd></div>
+          <div><dt>Sleep</dt><dd>{state.tracker.sleep ? `${state.tracker.sleep} h` : "Not logged"}</dd></div>
+          <div><dt>Mood</dt><dd>{state.tracker.mood ?? "Not logged"}</dd></div>
+          <div><dt>Moved today</dt><dd>{state.tracker.trained ? "Yes" : "Not yet"}</dd></div>
+          <div><dt>Booked check-in</dt><dd>{state.booking ?? "Not booked"}</dd></div>
+        </dl></section>
+        <section className="card"><h2>Workout &amp; check-in</h2><dl className="rc-detail-list">
+          <div><dt>Saturday session</dt><dd>{state.workout.finished ? `Completed · felt ${state.workout.feedback.toLowerCase() || "—"}` : `${state.workout.done.length} of 5 exercises done`}</dd></div>
+          <div><dt>Exercises done</dt><dd>{state.workout.done.length ? state.workout.done.map(i => exerciseNames[i]).join(", ") : "None yet"}</dd></div>
+          <div><dt>Weekly check-in</dt><dd>{state.checkin.submitted ? `Energy ${state.checkin.energy.toLowerCase()} · ${state.checkin.planFit.toLowerCase()}` : "Not submitted"}</dd></div>
+          <div><dt>Meals logged</dt><dd>{state.nutrition.logged.length} · {state.nutrition.preference} plan</dd></div>
+        </dl></section>
+      </div>
+      <section className="card rc-detail-weight"><div className="section-top"><h2>Weight trend</h2><span className="pill">{latestWeight !== undefined ? `${latestWeight} KG${weightChange !== null ? ` · ${weightChange > 0 ? "+" : ""}${weightChange} KG` : ""}` : "NO ENTRIES"}</span></div>
+        {weights.length > 1 && <LineChart points={weights} unit="kg" label={`${c.name} weight trend`} color={palette.red}/>}
+      </section>
+    </> : <section className="card"><h2>Member app activity</h2><p className="small-note">This client hasn’t been invited to the member app yet, so there are no tracker, workout or meal entries.</p></section>}
+
+    <section className="card rc-detail-weight"><div className="section-top"><h2>This week’s schedule</h2><span className="pill">{plan ? `${plan.filter(Boolean).length} WORKOUTS` : "NOT SCHEDULED"}</span></div>
+      {plan ? <dl className="rc-detail-list">{plan.map((w, i) => <div key={i}><dt>{dayNames[i]}</dt><dd>{w ? `${w.title}${w.time ? ` · ${formatTime(w.time)}` : ""}${w.durationMin ? ` · ${w.durationMin} min` : ""}${state?.workout.completedDays.includes(i) ? " · done ✓" : ""}${w.meetingUrl ? " · live link" : ""}` : "Rest"}</dd></div>)}</dl>
+        : <p className="small-note">The trainer hasn’t scheduled this week yet. The member sees the sample plan until they do.</p>}
+    </section>
+
+    <section className="card"><div className="section-top"><h2>History</h2><span className="pill">{history.length} EVENTS</span></div>
+      {history.length === 0 ? <p className="rc-staff-empty">No staff actions recorded for this client yet.</p>
+        : <ul className="rc-staff-activity">{history.map((a, i) => <li key={i}><b>{activityLabels[a.action] ?? a.action}</b><span>{a.detail} · by {a.actor}</span><time dateTime={a.at.replace(" ", "T") + "Z"}>{a.at.slice(0, 16)} UTC</time></li>)}</ul>}
+    </section>
+  </>;
+}

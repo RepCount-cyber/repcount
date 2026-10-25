@@ -23,7 +23,6 @@ No open signup UI. Verify provider-side public signup restrictions and supported
 - Intake: private schema, accessible only through validated server functions and authorised administration.
 - Plans/progress: later migrations with client and assigned-trainer policies, plus active-membership/date checks.
 - Future uploads: private object storage with per-user access.
-- Psychologist clinical notes: excluded; remain in the professional's separate record system initially.
 
 GitHub Pages hosts the frontend only. Intake and privileged approval need trusted server functions. Database owner credentials must never enter browser code. Public sample member views remain separate from real account routes.
 

@@ -2,7 +2,8 @@
 
 import {cookies, headers} from "next/headers";
 import {redirect} from "next/navigation";
-import {SESSION_COOKIE, encrypt, sessionExpiry} from "@/lib/session";
+import {SESSION_COOKIE} from "@/lib/session";
+import {startSession} from "@/lib/dal";
 import {verifyCredentials} from "@/lib/users";
 import {roleHome} from "@/lib/roles";
 
@@ -44,15 +45,7 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
   }
   failures.delete(key);
 
-  const expires = sessionExpiry();
-  const token = await encrypt({userId: user.id, role: user.role, expiresAt: expires.toISOString()});
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires,
-  });
+  await startSession(user);
   redirect(roleHome[user.role]);
 }
 

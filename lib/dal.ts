@@ -2,7 +2,7 @@ import "server-only";
 import {cache} from "react";
 import {cookies} from "next/headers";
 import {redirect} from "next/navigation";
-import {SESSION_COOKIE, decrypt} from "./session";
+import {SESSION_COOKIE, decrypt, encrypt, sessionExpiry} from "./session";
 import {findUser, type User} from "./users";
 import {roleHome, type Role} from "./roles";
 
@@ -19,4 +19,17 @@ export async function requireRole(role: Role): Promise<User> {
   if (!user) redirect("/login");
   if (user.role !== role) redirect(roleHome[user.role]);
   return user;
+}
+
+/** Sets the signed session cookie. Used by password sign-in and Google sign-in. */
+export async function startSession(user: User) {
+  const expires = sessionExpiry();
+  const token = await encrypt({userId: user.id, role: user.role, expiresAt: expires.toISOString()});
+  (await cookies()).set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    expires,
+  });
 }

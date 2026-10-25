@@ -18,7 +18,7 @@ const DATABASE_PATH = join(dataDir, 'test.db');
 before(async () => {
  const port = await new Promise(resolve => { const s = createServer(); s.listen(0, () => { const p = s.address().port; s.close(() => resolve(p)); }); });
  baseUrl = `http://127.0.0.1:${port}`;
- server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {env: {...process.env, SESSION_SECRET, DATABASE_PATH}, stdio: 'ignore'});
+ server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {env: {...process.env, SESSION_SECRET, DATABASE_PATH, GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'test-secret'}, stdio: 'ignore'});
  for (let i = 0; i < 100; i++) {
   try { await fetch(baseUrl + '/'); return; } catch { await new Promise(r => setTimeout(r, 100)); }
  }
@@ -57,11 +57,10 @@ test('pilot preserves confirmed scope and distinguishes future services', async 
  assert.match(text, /AED\s*299\s*\/\s*30 days/);
  assert.match(text, /10\s+adults in the\s+first India cohort/);
  assert.match(text, /Adults 18\+/);
- assert.match(text, /Initial psychologist onboarding session/);
- assert.match(text, /Weekly trainer follow-ups/);
+  assert.match(text, /Weekly trainer follow-ups/);
  assert.match(text, /Manual payment, verified by the team/);
  assert.match(text, /personalised nutrition plans are not currently part of the confirmed pilot package/);
- assert.match(text, /ongoing therapy is not a confirmed programme inclusion/);
+ assert.doesNotMatch(text, /psycholog|counsel|therap/i, 'The psychologist service has been withdrawn');
  assert.match(text, /No live enrolment,\s*payments or appointments/);
  assert.doesNotMatch(text, /guaranteed (?:weight loss|results|transformation)|cures? depression|lose \d+\s*(?:kg|pounds)/i);
 });
@@ -162,4 +161,57 @@ test('live data drives the public price and the trainer’s check-in queue', asy
  reset.prepare("update settings set value = ? where key = ?").run('AED', 'currency');
  reset.prepare("update settings set value = ? where key = ?").run('299', 'price');
  reset.close();
+});
+
+// Monday of the current week in India time, matching lib/dates.ts.
+function istWeekStart() {
+ const now = new Date(new Date().toLocaleString('en-US', {timeZone: 'Asia/Kolkata'}));
+ return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7))).toISOString().slice(0, 10);
+}
+
+test('admin can open a client detail page; other roles cannot', async () => {
+ const admin = await sessionCookie('u-admin', 'admin');
+ const page = await visit('/admin/clients/c-maya', admin);
+ assert.equal(page.status, 200);
+ const text = readableText(await page.text());
+ assert.match(text, /Maya R\./);
+ assert.match(text, /maya@example\.com/);
+ assert.match(text, /UPI-48213/);
+ assert.equal((await visit('/admin/clients/does-not-exist', admin)).status, 404);
+ assert.match((await visit('/admin/clients/c-maya', await sessionCookie('u-trainer-akif', 'trainer'))).headers.get('location') ?? '', /\/trainer$/);
+ const overview = readableText(await (await visit('/admin', admin)).text());
+ assert.match(overview, /Trainer performance/);
+});
+
+test('Google sign-in starts with state and PKCE and refuses a forged return', async () => {
+ assert.match(await (await visit('/login')).text(), /Continue with Google/);
+ const start = await visit('/api/auth/google');
+ assert.equal(start.status, 307);
+ const target = new URL(start.headers.get('location'));
+ assert.equal(target.host, 'accounts.google.com');
+ assert.equal(target.searchParams.get('client_id'), 'test-client.apps.googleusercontent.com');
+ assert.equal(target.searchParams.get('code_challenge_method'), 'S256');
+ assert.ok(target.searchParams.get('state') && target.searchParams.get('nonce'));
+ assert.match(start.headers.get('set-cookie') ?? '', /rc_google_oauth=.*HttpOnly/i);
+ const forged = await visit('/api/auth/google/callback?code=abc&state=wrong');
+ assert.match(forged.headers.get('location') ?? '', /\/login\?error=google_failed$/);
+});
+
+test('a trainer’s schedule and meeting link reach the member’s plan', async () => {
+ await productionHomepage();
+ const week = istWeekStart();
+ const db = new DatabaseSync(DATABASE_PATH);
+ db.prepare("delete from workout_plans where client_id = 'c-aarav'").run();
+ const insert = db.prepare("insert into workout_plans (client_id, week_start, day, title, exercises, start_time, duration_min, meeting_url, updated_by) values ('c-aarav', ?, ?, ?, ?, ?, ?, ?, 'u-trainer-akif')");
+ for (let day = 0; day < 7; day++) insert.run(week, day, 'Lower body strength', 'Goblet squat · 3 × 10\nGlute bridge · 3 × 12', '18:30', 35, 'https://meet.google.com/abc-defg-hij');
+ db.prepare("update clients set meeting_url = 'https://zoom.us/j/123456' where id = 'c-aarav'").run();
+ db.close();
+ const member = await sessionCookie('u-member-aarav', 'member');
+ const plan = await (await visit('/member/plan', member)).text();
+ assert.match(readableText(plan), /Lower body strength/);
+ assert.match(readableText(plan), /Goblet squat · 3 × 10/);
+ assert.match(plan, /href="https:\/\/meet\.google\.com\/abc-defg-hij"/);
+ assert.match(await (await visit('/member/team', member)).text(), /href="https:\/\/zoom\.us\/j\/123456"/);
+ const trainer = readableText(await (await visit('/trainer?tab=schedule', await sessionCookie('u-trainer-akif', 'trainer'))).text());
+ assert.match(trainer, /Plan the week/);
 });

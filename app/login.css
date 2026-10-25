@@ -14,3 +14,9 @@
 .rc-login-form input:not(:disabled):focus{outline:2px solid #e51937;outline-offset:1px;border-color:#e51937}
 .rc-login-submit:not(:disabled){cursor:pointer!important;background:#e51937;color:#fff}
 .rc-login-submit:not(:disabled):hover{background:#bf1230}
+.rc-login-or{display:flex;align-items:center;gap:12px;margin:18px 0 14px;color:#8a8b80;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.rc-login-or::before,.rc-login-or::after{content:"";flex:1;height:1px;background:#dfe0d6}
+.rc-login-google{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;border:1px solid #d6d8cb;border-radius:8px;background:#fff;color:#252822;font-size:14px;font-weight:600;text-decoration:none}
+.rc-login-google:hover{border-color:#252822}
+.rc-login-google:focus-visible{outline:2px solid #e51937;outline-offset:2px}
+.rc-login-google-note{font-size:11px;color:#6b7262;margin:8px 0 0;text-align:center}

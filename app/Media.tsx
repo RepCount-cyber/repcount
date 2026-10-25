@@ -12,7 +12,6 @@ export const media = {
   cardio: {src:'https://assets.mixkit.co/videos/5050/5050-720.mp4', poster:'https://assets.mixkit.co/videos/5050/5050-thumb-720-0.jpg', title:'Your home. Your movement.', credit:'https://mixkit.co/free-stock-video/young-sportsman-jumping-rope-at-home-5050/'},
   calm: {src:'https://assets.mixkit.co/videos/32635/32635-720.mp4', poster:'https://assets.mixkit.co/videos/32635/32635-thumb-720-0.jpg', title:'A moment to reconnect', credit:'https://mixkit.co/free-stock-video/'},
 };
-export const consultation = 'https://images.pexels.com/photos/7176320/pexels-photo-7176320.jpeg?auto=compress&cs=tinysrgb&w=1000';
 export type Clip = keyof typeof media;
 
 export function Icon({name, size=20}:{name:string; size?:number}) {
@@ -31,6 +30,8 @@ export function Icon({name, size=20}:{name:string; size?:number}) {
     clock:<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
     lock:<><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></>,
     plus:<path d="M12 5v14M5 12h14"/>,
+    calendar:<><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></>,
+    video:<><rect x="2" y="6" width="14" height="12" rx="3"/><path d="m16 10 6-3v10l-6-3"/></>,
     close:<path d="m6 6 12 12M18 6 6 18"/>,
     menu:<><path d="M4 8h16M4 16h16"/></>,
     sun:<><circle cx="12" cy="12" r="4"/><path d="M12 1v2M12 21v2M1 12h2M21 12h2m-2.2-7.8-1.4 1.4M6.6 17.4l-1.4 1.4m0-13.6 1.4 1.4m10.8 10.8 1.4 1.4"/></>,

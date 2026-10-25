@@ -99,7 +99,7 @@ export function LineChart({points, target, targetLabel, unit, color = palette.re
 }
 
 type Bar = {label: string; value: number; planned?: number; highlight?: boolean};
-export function BarChart({bars, unit, label, color = palette.sage, format = (n: number) => String(n)}: {bars: Bar[]; unit: string; label: string; color?: string; format?: (n: number) => string}) {
+export function BarChart({bars, unit, label, color = palette.sage, format = (n: number) => String(n), emptyLabel = "Planned", rowLabel = "Day"}: {bars: Bar[]; unit: string; label: string; color?: string; format?: (n: number) => string; emptyLabel?: string; rowLabel?: string}) {
   const W = 360, H = 200, L = 14, R = 14, T = 24, B = 30;
   const max = Math.max(1, ...bars.map(b => Math.max(b.value, b.planned ?? 0))) * 1.15;
   const slot = (W - L - R) / bars.length;
@@ -114,12 +114,12 @@ export function BarChart({bars, unit, label, color = palette.sage, format = (n: 
         return <g key={b.label + i}>
           {b.planned ? <rect x={cx - bw / 2} y={y(b.planned)} width={bw} height={H - B - y(b.planned)} rx="5" className="tk-ghost"/> : null}
           {b.value > 0 && <rect x={cx - bw / 2} y={y(b.value)} width={bw} height={H - B - y(b.value)} rx="5" fill={b.highlight ? palette.red : color}/>}
-          <text x={cx} y={(b.value > 0 ? y(b.value) : b.planned ? y(b.planned) : H - B) - 6} textAnchor="middle" className="tk-value tk-small">{b.value > 0 ? format(b.value) : b.planned ? "Planned" : ""}</text>
+          <text x={cx} y={(b.value > 0 ? y(b.value) : b.planned ? y(b.planned) : H - B) - 6} textAnchor="middle" className="tk-value tk-small">{b.value > 0 ? format(b.value) : b.planned ? emptyLabel : ""}</text>
           <text x={cx} y={H - 10} textAnchor="middle" className="tk-axis">{b.label}</text>
         </g>;
       })}
     </svg>
-    <DataTable caption={label} head={["Day", unit, "Planned"]} rows={bars.map(b => [b.label, format(b.value), b.planned ? format(b.planned) : "-"])}/>
+    <DataTable caption={label} head={[rowLabel, unit, "Planned"]} rows={bars.map(b => [b.label, format(b.value), b.planned ? format(b.planned) : "-"])}/>
   </figure>;
 }
 
@@ -340,7 +340,7 @@ export function CoachPanel() {
     <section className="card tk-panel">
       <span className="eyebrow">YOU CHOOSE WHAT IS SHARED</span><h2>Your data, your call.</h2>
       <ul className="tk-share">{([["weight", "Weight trend"], ["fat", "Body-fat estimates"], ["daily", "Daily tracker (steps, sleep, mood)"]] as const).map(([k, label]) => <li key={k}><span>{label}</span><button role="switch" aria-checked={share[k]} aria-label={`Share ${label} with trainer`} onClick={() => setShare(s => ({...s, [k]: !s[k]}))}><i/></button></li>)}</ul>
-      <p className="tk-note">Private counselling notes are never part of this list. Preview toggles do not change anything real.</p>
+      <p className="tk-note">Choose what your trainer can see. Sharing settings are a preview and don’t change anything yet.</p>
     </section>
   </div>;
 }
@@ -378,6 +378,6 @@ export function StaffInsights({clients}: {clients: StaffClient[]}) {
       <div><h3>Payments &amp; coverage</h3><Donut label="Payments verified" centerBig={`${paid}/${clients.length}`} centerSmall="verified" slices={[{label: "Verified", value: paid, color: palette.sage}, {label: "Awaiting review", value: clients.length - paid, color: palette.red}]}/>
         <Donut label="Trainer assignment" centerBig={`${trainers[0].value}/${clients.length}`} centerSmall="assigned" slices={[{label: "Assigned", value: trainers[0].value, color: palette.lilac}, {label: "Unassigned", value: trainers[1].value, color: palette.mist}]}/></div>
     </div>
-    <p className="tk-note">Sample cohort records. Private psychological notes are never shown in staff views.</p>
+    <p className="tk-note">Updates as clients log progress and staff verify payments.</p>
   </section>;
 }

@@ -24,3 +24,48 @@
 .rc-staff .rc-staff-activity time{font-size:11px;color:#868279}
 @media(max-width:700px){.rc-staff .rc-staff-activity li{grid-template-columns:1fr}}
 .rc-staff .team-card progress{width:100%;margin-top:10px}
+.rc-staff .filters{flex-wrap:wrap}
+.rc-staff .rc-client-link{display:flex;flex-direction:column;gap:2px;color:inherit;text-decoration:none}
+.rc-staff .rc-client-link small{font-size:11px;color:#c71331}
+.rc-staff .rc-client-link:hover b{text-decoration:underline}
+.rc-staff .rc-trainer-performance{margin-top:24px}
+.rc-staff .rc-trainer-perf-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:10px 0 20px}
+.rc-staff .rc-trainer-perf-grid h3{font-size:13px;margin-bottom:10px}
+.rc-staff .rc-trainer-card .rc-trainer-email{font-size:12px;color:#7b7b72;word-break:break-all}
+.rc-staff .rc-trainer-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.rc-staff .rc-trainer-stats div{background:#fbf9f4;border:1px solid #e9e5dd;border-radius:10px;padding:10px}
+.rc-staff .rc-trainer-stats dt{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#868279}
+.rc-staff .rc-trainer-stats dd{margin:4px 0 0;font-size:18px;font-weight:600}
+.rc-staff #add-trainer{margin-top:24px}
+@media(max-width:700px){.rc-staff .rc-trainer-perf-grid{grid-template-columns:1fr}.rc-staff .rc-trainer-stats{grid-template-columns:repeat(2,1fr)}}
+.rc-staff .rc-back-link{display:inline-block;margin-bottom:14px;font-size:13px;color:#c71331;text-decoration:none}
+.rc-staff .rc-back-link:hover{text-decoration:underline}
+.rc-staff .rc-detail-heading{align-items:center}
+.rc-staff .rc-detail-identity{display:flex;align-items:center;gap:18px}
+.rc-staff .rc-detail-small{font-size:22px!important}
+.rc-staff .rc-detail-grid{margin-bottom:24px}
+.rc-staff .rc-detail-list{display:grid;gap:0;margin:14px 0 0}
+.rc-staff .rc-detail-list>div{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;padding:11px 0;border-top:1px solid #efebe3}
+.rc-staff .rc-detail-list dt{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#868279}
+.rc-staff .rc-detail-list dd{margin:0;font-size:14px;font-weight:500;word-break:break-word}
+.rc-staff .rc-detail-list dd a{color:#c71331}
+.rc-staff .rc-detail-list select{min-height:40px;padding:0 10px;border:1px solid #d8dece;border-radius:8px;background:#fffdf8}
+.rc-staff .rc-detail-weight{margin-bottom:24px}
+@media(max-width:700px){.rc-staff .rc-detail-list>div{grid-template-columns:1fr;gap:4px}}
+.rc-staff .rc-schedule-pick{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.rc-staff .rc-schedule-pick label,.rc-staff .rc-schedule-days label,.rc-staff .rc-schedule-link label{display:flex;flex-direction:column;gap:6px}
+.rc-staff .rc-schedule-pick span,.rc-staff .rc-schedule-days span,.rc-staff .rc-schedule-link span{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#868279}
+.rc-staff .rc-schedule-pick select,.rc-staff .rc-schedule input,.rc-staff .rc-schedule select,.rc-staff .rc-schedule textarea,.rc-staff .rc-schedule-link input{min-height:42px;padding:8px 11px;border:1px solid #d8dece;border-radius:8px;background:#fffdf8;font:inherit;font-size:14px;color:#252822;width:100%}
+.rc-staff .rc-schedule-link{grid-column:1/-1;display:flex;gap:12px;align-items:flex-end}
+.rc-staff .rc-schedule-link label{flex:1}
+.rc-staff .rc-schedule-link .button{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.rc-staff .rc-schedule-tools{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
+.rc-staff .rc-schedule-days{list-style:none;margin:0 0 18px;padding:0;display:grid;gap:10px}
+.rc-staff .rc-schedule-days>li{display:grid;grid-template-columns:120px 210px 1fr 130px 100px;gap:12px;align-items:end;padding:14px;border:1px solid #e9e5dd;border-radius:12px;background:#fffdf8}
+.rc-staff .rc-schedule-days>li.rest{background:#f6f3ec;grid-template-columns:120px 210px}
+.rc-staff .rc-schedule-days .rc-schedule-wide{grid-column:2/-1}
+.rc-staff .rc-schedule-day{display:flex;flex-direction:column;gap:2px;align-self:center}
+.rc-staff .rc-schedule-day small{color:#868279;font-size:12px}
+@media(max-width:1000px){.rc-staff .rc-schedule-days>li,.rc-staff .rc-schedule-days>li.rest{grid-template-columns:1fr 1fr}.rc-staff .rc-schedule-days .rc-schedule-wide,.rc-staff .rc-schedule-day{grid-column:1/-1}}
+@media(max-width:700px){.rc-staff .rc-schedule-pick{grid-template-columns:1fr}.rc-staff .rc-schedule-link{flex-direction:column;align-items:stretch}}
+.rc-staff .notice.notice-error{background:#fdecec;border-color:#f4c4c9;color:#a3122a}

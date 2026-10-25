@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3000"),
   title: "RepCount — Stronger, in your own space.",
-  description: "Personal home training, thoughtful wellbeing support and everyday progress with RepCount’s India pilot.",
+  description: "Personal home training, weekly trainer support and everyday progress with RepCount’s India pilot.",
   robots: { index: false, follow: false },
   applicationName: "RepCount",
   manifest: "/manifest.webmanifest",

@@ -25,6 +25,21 @@ Everything is saved in a local SQLite database (`data/repcount.db`, created and 
 
 Delete `data/repcount.db` to reset to the sample cohort. Set `DATABASE_PATH` to store it elsewhere. SQLite suits a single Node server; for serverless hosting or real clients, move these tables to Neon Postgres (`ACCOUNT-SETUP.md`).
 
+## Staff features
+
+- **Trainer → Workout schedule:** pick a client and a week (this week or the next three), set each day as rest or a workout (templates or custom), add start time, duration, exercises and an optional live-session link (Google Meet, Zoom, Teams; https only). A weekly check-in call link can be saved per client. Members see the schedule on My plan with a "Join live session" button and mark workouts done; their weekly progress follows the schedule.
+- **Admin → Trainers:** trainer performance (client load, average progress, trained today, check-ins waiting/reviewed, unpaid clients) and an Add trainer form. New trainers sign in with Google using that email, or with an optional password.
+- **Admin → Clients & payments:** filter by trainer and sort by name, trainer, progress or stage. Each name opens `/admin/clients/<id>` with contact details, payment, trainer, this week's schedule, the member's saved tracker/workout/check-in/meal data, weight trend and the client's history.
+
+## Google sign-in
+
+Optional. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to show "Continue with Google" on `/login`. Only emails that already belong to a RepCount user are admitted; there is no open sign-up.
+
+1. Google Cloud Console → APIs & Services → OAuth consent screen: create it (External), add your app name and support email.
+2. Credentials → Create credentials → OAuth client ID → Web application.
+3. Authorised redirect URIs: `https://<your-domain>/api/auth/google/callback` and, for local work, `http://localhost:3100/api/auth/google/callback`.
+4. Copy the client ID and secret into Vercel (and `.env.local`). Set `SITE_URL` to your domain so the redirect URI matches exactly.
+
 ## Authentication
 
 - Credentials are checked by a server action (`app/actions/auth.ts`) against salted scrypt hashes (`lib/users.ts`), with a 5-failures-per-15-minutes limit per email and IP.
@@ -47,7 +62,7 @@ Hosting needs a long-running Node.js server with a persistent disk for the SQLit
 
 ## Design
 
-An original crimson R identity, warm ivory and charcoal, editorial typography, and approachable women and men exercising at home. One interactive phone demonstrates movement, nutrition concepts, progress and coaching; wellbeing consultation has a separate, quieter chapter. The member demo shares the same visual identity.
+An original crimson R identity, warm ivory and charcoal, editorial typography, and approachable women and men exercising at home. One interactive phone demonstrates movement, nutrition concepts, progress and coaching. The member demo shares the same visual identity.
 
 Illustrative media comes from Pexels, commercial-free Mixkit clips and Unsplash. Sources and licences are recorded in `MEDIA-CREDITS.md`. Stock subjects are not presented as actual staff, clients or endorsements. Videos are remote CDN assets, load near the viewport and provide explicit playback controls; automatic playback honours reduced motion and page visibility.
 Fonts: DM Sans and Manrope via Google Fonts, with system fallbacks.
@@ -56,6 +71,6 @@ Reduced-motion and Save Data preferences keep video posters visible without auto
 
 ## Demo boundaries
 
-The programme describes a proposed India adults-only pilot at AED 299 for 30 days, with psychologist onboarding and weekly trainer follow-ups. Proposed provider availability is unconfirmed. Nutrition scope and payment collection currency remain open.
+The programme describes an India adults-only pilot (default AED 299 for 30 days, editable by the super admin) with a personal training plan and weekly trainer follow-ups. Nutrition scope remains open. The psychologist onboarding service has been withdrawn and is not offered.
 
-Before real client use, connect durable storage for profiles, plans, check-ins and payments, add invitation-based account creation, scheduling and consent-based professional handoffs. Private psychological notes must remain outside general trainer/admin records. Brand availability has not been checked.
+Before real client use, connect durable storage for profiles, plans, check-ins and payments, add invitation-based account creation and scheduling. Brand availability has not been checked.
