@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     return fail("google_failed");
   }
 
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user) return fail("google_no_account");
   await startSession(user);
   const response = NextResponse.redirect(new URL(roleHome[user.role], request.url));

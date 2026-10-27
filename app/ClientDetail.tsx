@@ -5,16 +5,20 @@ import Link from "next/link";
 import {Icon} from "./Media";
 import {LineChart, palette} from "./Tracker";
 import {activityLabels} from "./StaffApp";
-import {assignTrainer, verifyPayment} from "./actions/data";
+import {assignTrainer, setAccountActive, setClientStage, verifyPayment} from "./actions/data";
 import type {ClientDetail as Detail} from "@/lib/store";
+import {stages} from "@/lib/programme";
 import {dayNames, formatTime} from "@/lib/schedule";
 
 const exerciseNames = ["Easy warm-up", "Chair squat", "Wall push-up", "Standing calf raise", "Gentle cool-down"];
 const formatDate = (iso: string | null) => iso ? new Date(`${iso.length === 10 ? iso + "T00:00:00Z" : iso.replace(" ", "T") + "Z"}`).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"}) : "—";
 
-/** Admin view of one client: profile, membership, coaching, saved progress and history. */
-export default function ClientDetail({detail, trainerNames}: {detail: Detail; trainerNames: string[]}) {
-  const {client: c, state, history, lastSaved, plan} = detail;
+const shortDate = (label: string) => /^\d{4}-\d{2}-\d{2}$/.test(label) ? formatDate(label).replace(/ \d{4}$/, "") : label;
+
+/** One client: profile, membership, coaching, saved progress and history. Admins can also change payment, trainer, stage and access. */
+export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin" | "trainer"; detail: Detail; trainers: {id: string; name: string}[]}) {
+  const {client: c, state, history, lastSaved, plan, pastWeeks} = detail;
+  const admin = viewer === "admin";
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
   const [noticeError, setNoticeError] = useState(false);
@@ -23,15 +27,15 @@ export default function ClientDetail({detail, trainerNames}: {detail: Detail; tr
     setNoticeError(!result.ok);
     setNotice(result.ok ?? result.error ?? "");
   });
-  const weights = state?.tracker.weights ?? [];
+  const weights = (state?.tracker.weights ?? []).map(p => ({label: shortDate(p.label), value: p.value}));
   const latestWeight = weights.at(-1)?.value;
   const weightChange = latestWeight !== undefined && weights[0] ? Math.round((latestWeight - weights[0].value) * 10) / 10 : null;
 
   return <>
-    <Link className="rc-back-link" href="/admin?tab=clients">← All clients</Link>
+    <Link className="rc-back-link" href={`/${viewer}?tab=clients`}>← All clients</Link>
     <div className="page-heading rc-detail-heading">
       <div className="rc-detail-identity"><span className="large-avatar">{c.initials}</span><div><p className="eyebrow">CLIENT PROFILE</p><h1 tabIndex={-1}>{c.name}</h1><p>{c.goal} · joined {formatDate(c.joinedOn)}</p></div></div>
-      <span className="pill">{c.stage}</span>
+      {admin ? <label className="rc-detail-stage"><span className="eyebrow">Stage</span><select aria-label={`Stage for ${c.name}`} value={c.stage} disabled={pending} onChange={e => {const stage = e.target.value; run(() => setClientStage(c.id, stage));}}>{stages.map(s => <option key={s}>{s}</option>)}</select></label> : <span className="pill">{c.stage}</span>}
     </div>
     {notice && <div className={noticeError ? "notice notice-error" : "notice"} role={noticeError ? "alert" : "status"}>{notice}<button onClick={() => setNotice("")} aria-label="Dismiss notification"><Icon name="close" size={18}/></button></div>}
 
@@ -46,14 +50,14 @@ export default function ClientDetail({detail, trainerNames}: {detail: Detail; tr
         <div><dt>Email</dt><dd>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : "—"}</dd></div>
         <div><dt>Phone</dt><dd>{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`}>{c.phone}</a> : "—"}</dd></div>
         <div><dt>Client ID</dt><dd>{c.id}</dd></div>
-        <div><dt>Member login</dt><dd>{c.userId ? "Active account" : "Not invited yet"}</dd></div>
+        <div><dt>Member login</dt><dd>{!c.userId ? "No account yet" : c.accountActive ? "Active account" : "Deactivated"}{admin && c.userId && <> <button className="small-button" disabled={pending} onClick={() => run(() => setAccountActive(c.userId!, !c.accountActive, c.id))}>{c.accountActive ? "Deactivate" : "Reactivate"}</button></>}</dd></div>
         <div><dt>Last saved activity</dt><dd>{lastSaved ? `${lastSaved.slice(0, 16)} UTC` : "—"}</dd></div>
       </dl></section>
 
       <section className="card"><h2>Membership &amp; coaching</h2><dl className="rc-detail-list">
-        <div><dt>Payment</dt><dd>{c.paid ? <span className="paid">Verified ✓</span> : <button className="small-button" disabled={pending} onClick={() => run(() => verifyPayment(c.id))}>Verify {c.reference ?? "payment"}</button>}</dd></div>
+        <div><dt>Payment</dt><dd>{c.paid ? <span className="paid">Verified ✓</span> : !admin ? "Awaiting verification" : <button className="small-button" disabled={pending} onClick={() => run(() => verifyPayment(c.id))}>Verify {c.reference ?? "payment"}</button>}</dd></div>
         <div><dt>Payment reference</dt><dd>{c.reference ?? "—"}</dd></div>
-        <div><dt>Trainer</dt><dd><select aria-label={`Trainer for ${c.name}`} value={c.trainer} disabled={pending} onChange={e => {const trainer = e.target.value; run(() => assignTrainer(c.id, trainer));}}><option>Unassigned</option>{trainerNames.map(n => <option key={n}>{n}</option>)}</select></dd></div>
+        <div><dt>Trainer</dt><dd>{admin ? <select aria-label={`Trainer for ${c.name}`} value={c.trainerId ?? ""} disabled={pending} onChange={e => {const trainerId = e.target.value; run(() => assignTrainer(c.id, trainerId));}}><option value="">Unassigned</option>{trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select> : c.trainer}</dd></div>
         <div><dt>Latest check-in</dt><dd>{c.checkinNote ? `“${c.checkinNote}”` : "—"}</dd></div>
         <div><dt>Check-in call link</dt><dd>{c.meetingUrl ? <a href={c.meetingUrl} target="_blank" rel="noopener noreferrer">{c.meetingUrl}</a> : "Not set by trainer"}</dd></div>
       </dl></section>
@@ -86,6 +90,10 @@ export default function ClientDetail({detail, trainerNames}: {detail: Detail; tr
       {plan ? <dl className="rc-detail-list">{plan.map((w, i) => <div key={i}><dt>{dayNames[i]}</dt><dd>{w ? `${w.title}${w.time ? ` · ${formatTime(w.time)}` : ""}${w.durationMin ? ` · ${w.durationMin} min` : ""}${state?.workout.completedDays.includes(i) ? " · done ✓" : ""}${w.meetingUrl ? " · live link" : ""}` : "Rest"}</dd></div>)}</dl>
         : <p className="small-note">The trainer hasn’t scheduled this week yet. The member sees the sample plan until they do.</p>}
     </section>
+
+    {pastWeeks.length > 0 && <section className="card"><div className="section-top"><h2>Past weeks</h2><span className="pill">{pastWeeks.length} WEEKS</span></div>
+      <dl className="rc-detail-list">{pastWeeks.map(w => <div key={w.weekStart}><dt>Week of {formatDate(w.weekStart)}</dt><dd>{w.workoutsDone} workout{w.workoutsDone === 1 ? "" : "s"} done · {w.checkin ? `“${w.checkin}”` : "no check-in"}</dd></div>)}</dl>
+    </section>}
 
     <section className="card"><div className="section-top"><h2>History</h2><span className="pill">{history.length} EVENTS</span></div>
       {history.length === 0 ? <p className="rc-staff-empty">No staff actions recorded for this client yet.</p>

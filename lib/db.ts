@@ -1,144 +1,159 @@
 import "server-only";
-import {mkdirSync} from "node:fs";
-import {dirname, join} from "node:path";
-import type {DatabaseSync as Database} from "node:sqlite";
-
-// Loaded at runtime: bundlers do not all recognise node:sqlite as a Node built-in yet.
-const {DatabaseSync} = process.getBuiltinModule("node:sqlite") as typeof import("node:sqlite");
-type DatabaseSync = Database;
+import postgres from "postgres";
+import {hashPassword} from "./passwords";
+import {istToday} from "./dates";
 
 /*
- * Local SQLite store (Node's built-in node:sqlite). One file, created and seeded on first use.
- * Suits local development and a single Node server. For serverless hosting or real clients,
- * move these tables to the Neon Postgres project described in ACCOUNT-SETUP.md.
+ * Postgres store (Neon in production, any Postgres locally). Set DATABASE_URL to the connection string.
+ * The schema is created on first use, under an advisory lock so concurrent cold starts don't race.
  */
-// Vercel's filesystem is read-only except /tmp, which is per-instance and cleared on cold starts.
-const path = process.env.DATABASE_PATH
-  || (process.env.VERCEL ? "/tmp/repcount.db" : join(/*turbopackIgnore: true*/ process.cwd(), "data", "repcount.db"));
+type Sql = postgres.Sql;
+const globalForDb = globalThis as unknown as {repcountSql?: Sql; repcountReady?: Promise<Sql>};
 
-const globalForDb = globalThis as unknown as {repcountDb?: DatabaseSync};
-
-function open() {
-  mkdirSync(dirname(path), {recursive: true});
-  const db = new DatabaseSync(path);
-  db.exec(`
-    pragma journal_mode = wal;
-    pragma foreign_keys = on;
-    create table if not exists clients (
-      id text primary key,
-      user_id text unique,
-      name text not null,
-      initials text not null,
-      stage text not null check (stage in ('Active', 'Onboarding', 'Check-in due', 'Payment review')),
-      trainer text not null default 'Unassigned',
-      paid integer not null default 0,
-      progress integer not null default 0 check (progress between 0 and 100),
-      goal text not null,
-      last_workout text not null default '—',
-      next_checkin text not null default '—',
-      payment_reference text,
-      checkin_note text
-    );
-    create table if not exists member_state (
-      user_id text primary key,
-      data text not null,
-      updated_at text not null default (datetime('now'))
-    );
-    create table if not exists settings (
-      key text primary key,
-      value text not null
-    );
-    create table if not exists users (
-      id text primary key,
-      email text not null unique,
-      name text not null unique,
-      initials text not null,
-      role text not null check (role in ('member', 'trainer', 'admin')),
-      password_hash text,
-      title text,
-      capacity integer not null default 8,
-      created_at text not null default (datetime('now'))
-    );
-    create table if not exists workout_plans (
-      client_id text not null references clients(id) on delete cascade,
-      week_start text not null,
-      day integer not null check (day between 0 and 6),
-      title text not null,
-      exercises text not null default '',
-      start_time text,
-      duration_min integer,
-      meeting_url text,
-      updated_by text not null,
-      updated_at text not null default (datetime('now')),
-      primary key (client_id, week_start, day)
-    );
-    create table if not exists audit_log (
-      id integer primary key autoincrement,
-      actor_id text not null,
-      action text not null,
-      detail text not null,
-      created_at text not null default (datetime('now'))
-    );
-  `);
-  migrate(db);
-  const seeded = db.prepare("select count(*) as n from clients").get() as {n: number};
-  if (seeded.n === 0) seed(db);
-  fillSampleContacts(db);
-  const hasUsers = db.prepare("select count(*) as n from users").get() as {n: number};
-  if (hasUsers.n === 0) seedUsers(db);
-  return db;
+function connect(): Sql {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL must be set to a Postgres connection string (see .env.example).");
+  // Serverless functions each hold one connection; Neon's pooler multiplexes them.
+  return postgres(url, {max: process.env.VERCEL ? 1 : 10, idle_timeout: 20, prepare: false, onnotice: () => {}});
 }
 
-/** Adds columns introduced after a database was first created. */
-function migrate(db: DatabaseSync) {
-  const columns = (table: string) => (db.prepare(`pragma table_info(${table})`).all() as {name: string}[]).map(c => c.name);
-  const clientColumns = columns("clients");
-  for (const [name, type] of [["email", "text"], ["phone", "text"], ["joined_on", "text"], ["meeting_url", "text"]]) {
-    if (!clientColumns.includes(name)) db.exec(`alter table clients add column ${name} ${type}`);
-  }
-  if (!columns("audit_log").includes("subject_id")) db.exec("alter table audit_log add column subject_id text");
+const schema = `
+  create table if not exists users (
+    id text primary key,
+    email text not null unique,
+    name text not null,
+    initials text not null,
+    role text not null check (role in ('member', 'trainer', 'admin')),
+    password_hash text,
+    title text,
+    capacity integer not null default 8,
+    active boolean not null default true,
+    session_version integer not null default 0,
+    created_at timestamptz not null default now()
+  );
+  create table if not exists clients (
+    id text primary key,
+    user_id text unique references users(id) on delete set null,
+    name text not null,
+    initials text not null,
+    stage text not null check (stage in ('Active', 'Onboarding', 'Check-in due', 'Payment review')),
+    trainer_id text references users(id) on delete set null,
+    paid boolean not null default false,
+    progress integer not null default 0 check (progress between 0 and 100),
+    goal text not null,
+    last_workout_on date,
+    next_checkin text not null default '—',
+    payment_reference text,
+    checkin_note text,
+    email text,
+    phone text,
+    joined_on date,
+    meeting_url text
+  );
+  create index if not exists clients_trainer_idx on clients (trainer_id);
+  create table if not exists member_state (
+    user_id text primary key references users(id) on delete cascade,
+    data jsonb not null,
+    updated_at timestamptz not null default now()
+  );
+  create table if not exists member_history (
+    user_id text not null references users(id) on delete cascade,
+    period text not null check (period in ('day', 'week')),
+    period_start date not null,
+    data jsonb not null,
+    primary key (user_id, period, period_start)
+  );
+  create table if not exists settings (
+    key text primary key,
+    value text not null
+  );
+  create table if not exists workout_plans (
+    client_id text not null references clients(id) on delete cascade,
+    week_start date not null,
+    day integer not null check (day between 0 and 6),
+    title text not null,
+    exercises text not null default '',
+    start_time text,
+    duration_min integer,
+    meeting_url text,
+    updated_by text not null,
+    updated_at timestamptz not null default now(),
+    primary key (client_id, week_start, day)
+  );
+  create table if not exists audit_log (
+    id bigserial primary key,
+    actor_id text not null,
+    action text not null,
+    detail text not null,
+    subject_id text,
+    created_at timestamptz not null default now()
+  );
+  create index if not exists audit_subject_idx on audit_log (subject_id);
+  create table if not exists login_attempts (
+    key text primary key,
+    count integer not null,
+    since timestamptz not null
+  );
+`;
+
+async function prepare(sql: Sql) {
+  await sql.begin(async tx => {
+    await tx`select pg_advisory_xact_lock(74283015)`;
+    await tx.unsafe(schema);
+    await tx`insert into settings (key, value) values ('price', '299'), ('cohortSize', '10') on conflict (key) do nothing`;
+    const [{n}] = await tx<{n: number}[]>`select count(*)::int as n from users`;
+    if (n === 0 && process.env.SEED_DEMO_DATA === "true") await seedDemo(tx);
+    await bootstrapAdmin(tx);
+  });
+  return sql;
 }
 
-/** Contact details for the sample cohort (no-op once filled in). */
-function fillSampleContacts(db: DatabaseSync) {
-  const contact = db.prepare("update clients set email = coalesce(email, ?), phone = coalesce(phone, ?), joined_on = coalesce(joined_on, ?) where id = ?");
-  for (const [id, email, phone, joined] of [
-    ["c-aarav", "member@repcount.demo", "+91 98200 11111", "2026-10-15"],
-    ["c-maya", "maya@example.com", "+91 98200 22222", "2026-10-20"],
-    ["c-riya", "riya@example.com", "+91 98200 33333", "2026-10-18"],
-    ["c-kabir", "kabir@example.com", "+91 98200 44444", "2026-10-15"],
-    ["c-neha", "neha@example.com", "+91 98200 55555", "2026-10-15"],
-  ]) contact.run(email, phone, joined, id);
+/** Creates the first super admin from ADMIN_EMAIL (Google sign-in) and optional ADMIN_PASSWORD. */
+async function bootstrapAdmin(tx: postgres.TransactionSql) {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (!email) return;
+  const password = process.env.ADMIN_PASSWORD;
+  await tx`insert into users (id, email, name, initials, role, password_hash) values
+    ('u-admin-owner', ${email}, 'Super admin', 'SA', 'admin', ${password && password.length >= 10 ? hashPassword(password) : null})
+    on conflict (email) do nothing`;
 }
 
-/* Demo sign-ins. Passwords are stored only as salted scrypt hashes; Trainer 2 has none and signs in with Google. */
-function seedUsers(db: DatabaseSync) {
-  const insert = db.prepare("insert into users (id, email, name, initials, role, password_hash, title, capacity) values (?, ?, ?, ?, ?, ?, ?, ?)");
-  insert.run("u-member-aarav", "member@repcount.demo", "Aarav Sharma", "AS", "member",
-    "scrypt$c5ff526594572bdfcfc0ae2ba014ab22$49b989bc456162781422a636f7053ce85452bcf626399fd08df085fa275a371cf77ce80cf693f6c06feb0188577eb49648a238285a5efccdc88f7f0ecca779ca", null, 0);
-  insert.run("u-trainer-akif", "trainer@repcount.demo", "Akif", "AK", "trainer",
-    "scrypt$6ebef398eb7a1f3161834274286b35aa$6f910a5e62dc9e998b1ec751ee3b7d921b4e14391be11739279c34b7c843cdbf470c26dfb338873dc2d6c8c588a3d7e709b209d72fdc0ac6367daa97a21f9fd1", "Lead trainer", 8);
-  insert.run("u-trainer-2", "trainer2@repcount.demo", "Trainer 2", "T2", "trainer", null, "Trainer", 6);
-  insert.run("u-admin", "admin@repcount.demo", "Super admin", "SA", "admin",
-    "scrypt$3194d72b53ac3e0bee2609720b21d39e$e7fbb376a4ba1825a80dfef40b4b20e571e35c4a853a5311011206e8d71d6c0f48799c4b476ed11699374f8c5c01170946bbea52b3554b938746d4b29ad27a71", null, 0);
-}
-
-function seed(db: DatabaseSync) {
-  const insert = db.prepare(`insert into clients (id, user_id, name, initials, stage, trainer, paid, progress, goal, last_workout, next_checkin, payment_reference)
-    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const rows: [string, string | null, string, string, string, string, number, number, string, string, string, string | null][] = [
-    ["c-aarav", "u-member-aarav", "Aarav S.", "AS", "Active", "Akif", 1, 75, "Build strength", "Yesterday", "Fri · 6:00 PM", null],
-    ["c-maya", null, "Maya R.", "MR", "Payment review", "Unassigned", 0, 0, "Consistent routine", "—", "After activation", "UPI-48213"],
-    ["c-riya", null, "Riya K.", "RK", "Onboarding", "Unassigned", 1, 0, "Confidence exercising", "—", "Onboarding call", null],
-    ["c-kabir", null, "Kabir M.", "KM", "Check-in due", "Akif", 1, 50, "Lose body fat", "3 days ago", "Today · 7:30 PM", null],
-    ["c-neha", null, "Neha P.", "NP", "Active", "Akif", 1, 100, "Improve mobility", "Today", "Sat · 10:00 AM", null],
+/* Sample cohort for demos and tests. Only seeded into an empty database when SEED_DEMO_DATA=true. */
+async function seedDemo(tx: postgres.TransactionSql) {
+  const {day} = istToday();
+  const daysAgo = (n: number) => new Date(Date.parse(`${day}T00:00:00Z`) - n * 86400000).toISOString().slice(0, 10);
+  await tx`insert into users (id, email, name, initials, role, password_hash, title, capacity) values
+    ('u-member-aarav', 'member@repcount.demo', 'Aarav Sharma', 'AS', 'member',
+      'scrypt$c5ff526594572bdfcfc0ae2ba014ab22$49b989bc456162781422a636f7053ce85452bcf626399fd08df085fa275a371cf77ce80cf693f6c06feb0188577eb49648a238285a5efccdc88f7f0ecca779ca', null, 0),
+    ('u-trainer-akif', 'trainer@repcount.demo', 'Akif', 'AK', 'trainer',
+      'scrypt$6ebef398eb7a1f3161834274286b35aa$6f910a5e62dc9e998b1ec751ee3b7d921b4e14391be11739279c34b7c843cdbf470c26dfb338873dc2d6c8c588a3d7e709b209d72fdc0ac6367daa97a21f9fd1', 'Lead trainer', 8),
+    ('u-trainer-2', 'trainer2@repcount.demo', 'Trainer 2', 'T2', 'trainer', ${hashPassword("Trainer2#2026")}, 'Trainer', 6),
+    ('u-member-kabir', 'member2@repcount.demo', 'Kabir Mehta', 'KM', 'member', ${hashPassword("Member2#2026")}, null, 0),
+    ('u-admin', 'admin@repcount.demo', 'Super admin', 'SA', 'admin',
+      'scrypt$3194d72b53ac3e0bee2609720b21d39e$e7fbb376a4ba1825a80dfef40b4b20e571e35c4a853a5311011206e8d71d6c0f48799c4b476ed11699374f8c5c01170946bbea52b3554b938746d4b29ad27a71', null, 0)`;
+  const clients: [string, string | null, string, string, string, string | null, boolean, number, string, string | null, string, string | null, string, string, string][] = [
+    ["c-aarav", "u-member-aarav", "Aarav S.", "AS", "Active", "u-trainer-akif", true, 75, "Build strength", daysAgo(1), "Fri · 6:00 PM", null, "member@repcount.demo", "+91 98200 11111", daysAgo(12)],
+    ["c-maya", null, "Maya R.", "MR", "Payment review", null, false, 0, "Consistent routine", null, "After activation", "UPI-48213", "maya@example.com", "+91 98200 22222", daysAgo(7)],
+    ["c-riya", null, "Riya K.", "RK", "Onboarding", null, true, 0, "Confidence exercising", null, "Onboarding call", null, "riya@example.com", "+91 98200 33333", daysAgo(9)],
+    ["c-kabir", "u-member-kabir", "Kabir M.", "KM", "Check-in due", "u-trainer-akif", true, 50, "Lose body fat", daysAgo(3), "Today · 7:30 PM", null, "member2@repcount.demo", "+91 98200 44444", daysAgo(12)],
+    ["c-neha", null, "Neha P.", "NP", "Active", "u-trainer-akif", true, 100, "Improve mobility", daysAgo(0), "Sat · 10:00 AM", null, "neha@example.com", "+91 98200 55555", daysAgo(12)],
   ];
-  for (const row of rows) insert.run(...row);
-  const setting = db.prepare("insert or ignore into settings (key, value) values (?, ?)");
-  for (const [key, value] of Object.entries({price: "299", currency: "AED", cohortSize: "10"})) setting.run(key, value);
+  for (const [id, userId, name, initials, stage, trainerId, paid, progress, goal, lastWorkout, nextCheckin, reference, email, phone, joined] of clients) {
+    await tx`insert into clients (id, user_id, name, initials, stage, trainer_id, paid, progress, goal, last_workout_on, next_checkin, payment_reference, email, phone, joined_on)
+      values (${id}, ${userId}, ${name}, ${initials}, ${stage}, ${trainerId}, ${paid}, ${progress}, ${goal}, ${lastWorkout}, ${nextCheckin}, ${reference}, ${email}, ${phone}, ${joined})`;
+  }
+  // A few dated weigh-ins so the demo member's progress charts have a history.
+  const weights = [78.4, 78.2, 78.1, 77.8, 77.7].map((value, i) => ({label: daysAgo(10 - i * 2), value}));
+  const fats = [27.0, 26.9, 26.9, 26.7, 26.6].map((value, i) => ({label: daysAgo(10 - i * 2), value}));
+  await tx`insert into member_state (user_id, data) values ('u-member-aarav', ${tx.json({tracker: {weights, fats}})})`;
 }
 
-export function db() {
-  globalForDb.repcountDb ??= open();
-  return globalForDb.repcountDb;
+/** The ready-to-use connection; the first call creates the schema. */
+export function db(): Promise<Sql> {
+  globalForDb.repcountSql ??= connect();
+  globalForDb.repcountReady ??= prepare(globalForDb.repcountSql).catch(error => {
+    globalForDb.repcountReady = undefined;
+    throw error;
+  });
+  return globalForDb.repcountReady;
 }

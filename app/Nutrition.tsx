@@ -59,6 +59,6 @@ export default function Nutrition({initial,onChange}:{initial:NutritionState;onC
     })}</div>
     <section className="member-water-card" aria-labelledby="water-title"><div className="member-water-copy"><span className="eyebrow">A SIMPLE WATER LOG</span><h3 id="water-title">A small pause to refresh.</h3><p>A sample glass count for {days[day].toLowerCase()}. No daily intake target is set.</p></div><div className="member-water-control"><button aria-label="Remove one sample glass" disabled={!glasses} onClick={()=>setWater(previous=>({...previous,[day]:Math.max(0,(previous[day]||0)-1)}))}>−</button><span className="member-water-number" role="status"><strong>{glasses}</strong><small>{glasses===1?'glass logged':'glasses logged'}</small></span><button aria-label="Add one sample glass" onClick={()=>setWater(previous=>({...previous,[day]:(previous[day]||0)+1}))}><Icon name="plus" size={20}/></button></div></section>
     <NutritionBalance totals={totals} meals={sampleMeals.map((meal,index)=>({name:meal.time,kcal:meal.kcal,logged:logged.includes(mealKey(index))}))} waterByDay={days.map((name,index)=>({label:name.slice(0,3),value:water[index]||0}))}/>
-    <p className="member-nutrition-note">Interactive concept only. Sample logs reset when you leave this screen. No personal health information is collected.</p>
+    <p className="member-nutrition-note">Your meal and water logs save to your account. Meal ideas are examples, not a prescribed diet.</p>
   </div>;
 }

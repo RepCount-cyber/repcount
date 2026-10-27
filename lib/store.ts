@@ -1,72 +1,120 @@
 import "server-only";
+import type postgres from "postgres";
 import {db} from "./db";
 import {rollOver, sanitizeMemberState, type MemberState} from "./memberState";
 import {istToday} from "./dates";
 import {listTrainers, type Trainer} from "./users";
 import type {PlannedWorkout, WeekPlan} from "./schedule";
+import {currency} from "./programme";
 
 export type ClientRow = {
-  id: string; name: string; initials: string; stage: string; trainer: string; paid: boolean; progress: number;
-  goal: string; lastWorkout: string; nextCheckIn: string; reference: string | null; checkinNote: string | null;
-  email: string | null; phone: string | null; joinedOn: string | null; userId: string | null; meetingUrl: string | null;
+  id: string; name: string; initials: string; stage: string; trainerId: string | null; trainer: string; paid: boolean; progress: number;
+  goal: string; lastWorkout: string; lastWorkoutOn: string | null; nextCheckIn: string; reference: string | null; checkinNote: string | null;
+  email: string | null; phone: string | null; joinedOn: string | null; userId: string | null; accountActive: boolean | null; meetingUrl: string | null;
 };
-export type Settings = {price: string; currency: string; cohortSize: string};
-export const trainerNames = () => listTrainers().map(t => t.name);
-export const currencies = ["AED", "INR"];
+export {currency, stages} from "./programme";
+export type Settings = {price: string; currency: typeof currency; cohortSize: string};
 
-type RawClient = {id: string; user_id: string | null; name: string; initials: string; stage: string; trainer: string; paid: number; progress: number; goal: string; last_workout: string; next_checkin: string; payment_reference: string | null; checkin_note: string | null; email: string | null; phone: string | null; joined_on: string | null; meeting_url: string | null};
-const toClient = (r: RawClient): ClientRow => ({
-  id: r.id, name: r.name, initials: r.initials, stage: r.stage, trainer: r.trainer, paid: r.paid === 1, progress: r.progress,
-  goal: r.goal, lastWorkout: r.last_workout, nextCheckIn: r.next_checkin, reference: r.payment_reference, checkinNote: r.checkin_note,
-  email: r.email, phone: r.phone, joinedOn: r.joined_on, userId: r.user_id, meetingUrl: r.meeting_url,
+type RawClient = {
+  id: string; user_id: string | null; name: string; initials: string; stage: string; trainer_id: string | null; trainer_name: string | null; paid: boolean; progress: number;
+  goal: string; last_workout_on: string | null; next_checkin: string; payment_reference: string | null; checkin_note: string | null;
+  email: string | null; phone: string | null; joined_on: string | null; account_active: boolean | null; meeting_url: string | null;
+};
+
+/** "Today", "Yesterday", "3 days ago" relative to today in India time. */
+function relativeDay(iso: string | null, today: string) {
+  if (!iso) return "—";
+  const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86400000);
+  return days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+}
+
+const toClient = (r: RawClient, today: string): ClientRow => ({
+  id: r.id, name: r.name, initials: r.initials, stage: r.stage, trainerId: r.trainer_id, trainer: r.trainer_name ?? "Unassigned", paid: r.paid, progress: r.progress,
+  goal: r.goal, lastWorkout: relativeDay(r.last_workout_on, today), lastWorkoutOn: r.last_workout_on, nextCheckIn: r.next_checkin, reference: r.payment_reference,
+  checkinNote: r.checkin_note, email: r.email, phone: r.phone, joinedOn: r.joined_on, userId: r.user_id, accountActive: r.account_active, meetingUrl: r.meeting_url,
 });
 
-export function listClients(trainer?: string): ClientRow[] {
-  const rows = trainer
-    ? db().prepare("select * from clients where trainer = ? order by name").all(trainer)
-    : db().prepare("select * from clients order by name").all();
-  return (rows as RawClient[]).map(toClient);
+const clientSelect = (sql: postgres.Sql) => sql`
+  select c.id, c.user_id, c.name, c.initials, c.stage, c.trainer_id, t.name as trainer_name, c.paid, c.progress, c.goal,
+    c.last_workout_on::text as last_workout_on, c.next_checkin, c.payment_reference, c.checkin_note, c.email, c.phone,
+    c.joined_on::text as joined_on, u.active as account_active, c.meeting_url
+  from clients c left join users t on t.id = c.trainer_id left join users u on u.id = c.user_id`;
+
+export async function listClients(trainerId?: string): Promise<ClientRow[]> {
+  const sql = await db();
+  const rows = await sql<RawClient[]>`${clientSelect(sql)} ${trainerId ? sql`where c.trainer_id = ${trainerId}` : sql``} order by c.name`;
+  const {day} = istToday();
+  return rows.map(r => toClient(r, day));
 }
 
-export function getClient(id: string): ClientRow | null {
-  const row = db().prepare("select * from clients where id = ?").get(id) as RawClient | undefined;
-  return row ? toClient(row) : null;
+export async function getClient(id: string): Promise<ClientRow | null> {
+  const sql = await db();
+  const [row] = await sql<RawClient[]>`${clientSelect(sql)} where c.id = ${id}`;
+  return row ? toClient(row, istToday().day) : null;
 }
 
-export function assignTrainer(id: string, trainer: string) {
-  db().prepare("update clients set trainer = ? where id = ?").run(trainer, id);
+export async function clientByUser(userId: string): Promise<ClientRow | null> {
+  const sql = await db();
+  const [row] = await sql<RawClient[]>`${clientSelect(sql)} where c.user_id = ${userId}`;
+  return row ? toClient(row, istToday().day) : null;
 }
 
-export function verifyPayment(id: string) {
-  db().prepare("update clients set paid = 1, stage = case when stage = 'Payment review' then 'Onboarding' else stage end where id = ?").run(id);
+export async function createClient(input: {id: string; userId: string; name: string; initials: string; email: string; phone: string | null; goal: string; trainerId: string | null}) {
+  const sql = await db();
+  await sql`insert into clients (id, user_id, name, initials, stage, trainer_id, goal, email, phone, joined_on)
+    values (${input.id}, ${input.userId}, ${input.name}, ${input.initials}, 'Payment review', ${input.trainerId}, ${input.goal}, ${input.email}, ${input.phone}, ${istToday().day})`;
 }
 
-export function markCheckinReviewed(id: string) {
-  db().prepare("update clients set stage = 'Active' where id = ? and stage = 'Check-in due'").run(id);
+export async function assignTrainer(id: string, trainerId: string | null) {
+  const sql = await db();
+  await sql`update clients set trainer_id = ${trainerId} where id = ${id}`;
 }
 
-export function getSettings(): Settings {
-  const rows = db().prepare("select key, value from settings").all() as {key: string; value: string}[];
+export async function verifyPayment(id: string) {
+  const sql = await db();
+  await sql`update clients set paid = true, stage = case when stage = 'Payment review' then 'Onboarding' else stage end where id = ${id}`;
+}
+
+export async function setStage(id: string, stage: string) {
+  const sql = await db();
+  await sql`update clients set stage = ${stage} where id = ${id}`;
+}
+
+export async function markCheckinReviewed(id: string) {
+  const sql = await db();
+  await sql`update clients set stage = 'Active' where id = ${id} and stage = 'Check-in due'`;
+}
+
+export async function getSettings(): Promise<Settings> {
+  const sql = await db();
+  const rows = await sql<{key: string; value: string}[]>`select key, value from settings`;
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
-  return {price: map.price ?? "299", currency: map.currency ?? "AED", cohortSize: map.cohortSize ?? "10"};
+  return {price: map.price ?? "299", currency, cohortSize: map.cohortSize ?? "10"};
 }
 
-export function updateSettings(next: Settings) {
-  const statement = db().prepare("insert into settings (key, value) values (?, ?) on conflict(key) do update set value = excluded.value");
-  for (const [key, value] of Object.entries(next)) statement.run(key, value);
+export async function updateSettings(next: {price: string; cohortSize: string}) {
+  const sql = await db();
+  for (const [key, value] of Object.entries(next)) {
+    await sql`insert into settings (key, value) values (${key}, ${value}) on conflict (key) do update set value = excluded.value`;
+  }
 }
 
-export function audit(actorId: string, action: string, detail: string, subjectId: string | null = null) {
-  db().prepare("insert into audit_log (actor_id, action, detail, subject_id) values (?, ?, ?, ?)").run(actorId, action, detail, subjectId);
+export async function audit(actorId: string, action: string, detail: string, subjectId: string | null = null) {
+  const sql = await db();
+  await sql`insert into audit_log (actor_id, action, detail, subject_id) values (${actorId}, ${action}, ${detail}, ${subjectId})`;
 }
 
+/** at is "YYYY-MM-DD HH:MM:SS" in UTC. */
 export type AuditEntry = {action: string; detail: string; at: string; actor: string};
-const auditSelect = "select a.action, a.detail, a.created_at as at, coalesce(u.name, a.actor_id) as actor from audit_log a left join users u on u.id = a.actor_id";
-// node:sqlite rows have a null prototype; React can only pass plain objects to client components.
-const plainAudit = (rows: unknown[]) => (rows as AuditEntry[]).map(({action, detail, at, actor}) => ({action, detail, at, actor}));
+const auditSelect = (sql: postgres.Sql) => sql`
+  select a.action, a.detail, to_char(a.created_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as at, coalesce(u.name, a.actor_id) as actor
+  from audit_log a left join users u on u.id = a.actor_id`;
+// Rows carry driver metadata; React can only pass plain objects to client components.
+const plainAudit = (rows: AuditEntry[]) => rows.map(({action, detail, at, actor}) => ({action, detail, at, actor}));
 
-export function recentAudit(limit = 8): AuditEntry[] {
-  return plainAudit(db().prepare(`${auditSelect} order by a.id desc limit ?`).all(limit));
+export async function recentAudit(limit = 8): Promise<AuditEntry[]> {
+  const sql = await db();
+  return plainAudit(await sql<AuditEntry[]>`${auditSelect(sql)} order by a.id desc limit ${limit}`);
 }
 
 export type TrainerStats = Trainer & {
@@ -75,11 +123,12 @@ export type TrainerStats = Trainer & {
 };
 
 /** Per-trainer workload and outcomes, computed from client records and the audit log. */
-export function trainerAnalytics(): TrainerStats[] {
-  const clients = listClients();
-  const reviewed = db().prepare("select actor_id as id, count(*) as n from audit_log where action = 'review_checkin' group by actor_id").all() as {id: string; n: number}[];
-  return listTrainers().map(t => {
-    const mine = clients.filter(c => c.trainer === t.name);
+export async function trainerAnalytics(): Promise<TrainerStats[]> {
+  const sql = await db();
+  const [clients, trainers] = await Promise.all([listClients(), listTrainers()]);
+  const reviewed = await sql<{id: string; n: number}[]>`select actor_id as id, count(*)::int as n from audit_log where action = 'review_checkin' group by actor_id`;
+  return trainers.map(t => {
+    const mine = clients.filter(c => c.trainerId === t.id);
     return {
       ...t,
       clients: mine.length,
@@ -93,64 +142,94 @@ export function trainerAnalytics(): TrainerStats[] {
   });
 }
 
-export type ClientDetail = {client: ClientRow; state: MemberState | null; history: AuditEntry[]; lastSaved: string | null; plan: WeekPlan | null};
+export type PastWeek = {weekStart: string; workoutsDone: number; checkin: string | null};
+export type ClientDetail = {client: ClientRow; state: MemberState | null; history: AuditEntry[]; lastSaved: string | null; plan: WeekPlan | null; pastWeeks: PastWeek[]};
 
-/** Everything the admin can see about one client: record, saved member progress and action history. */
-export function clientDetail(id: string): ClientDetail | null {
-  const client = getClient(id);
+/** Everything staff can see about one client: record, saved member progress, past weeks and action history. */
+export async function clientDetail(id: string): Promise<ClientDetail | null> {
+  const client = await getClient(id);
   if (!client) return null;
+  const sql = await db();
   let state: MemberState | null = null;
   let lastSaved: string | null = null;
+  let pastWeeks: PastWeek[] = [];
   if (client.userId) {
-    const {day, weekStart} = istToday();
-    state = getMemberState(client.userId, day, weekStart);
-    lastSaved = (db().prepare("select updated_at from member_state where user_id = ?").get(client.userId) as {updated_at: string} | undefined)?.updated_at ?? null;
+    state = await getMemberState(client.userId);
+    const [saved] = await sql<{at: string}[]>`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as at from member_state where user_id = ${client.userId}`;
+    lastSaved = saved?.at ?? null;
+    const weeks = await sql<{week_start: string; data: unknown}[]>`select period_start::text as week_start, data from member_history where user_id = ${client.userId} and period = 'week' order by period_start desc limit 12`;
+    pastWeeks = weeks.map(w => {
+      const s = sanitizeMemberState(w.data, w.week_start, w.week_start);
+      return {weekStart: w.week_start, workoutsDone: s.workout.completedDays.length, checkin: s.checkin.submitted ? `Energy ${s.checkin.energy.toLowerCase()} · ${s.checkin.planFit.toLowerCase()}` : null};
+    });
   }
-  const history = plainAudit(db().prepare(`${auditSelect} where a.subject_id = ? order by a.id desc limit 50`).all(id));
-  return {client, state, history, lastSaved, plan: getWeekPlan(id, istToday().weekStart)};
+  const history = plainAudit(await sql<AuditEntry[]>`${auditSelect(sql)} where a.subject_id = ${id} order by a.id desc limit 50`);
+  return {client, state, history, lastSaved, plan: await getWeekPlan(id, istToday().weekStart), pastWeeks};
 }
 
-export function getMemberState(userId: string, day: string, weekStart: string): MemberState {
-  const row = db().prepare("select data from member_state where user_id = ?").get(userId) as {data: string} | undefined;
-  let parsed: unknown = null;
-  try { parsed = row ? JSON.parse(row.data) : null; } catch { parsed = null; }
-  return rollOver(sanitizeMemberState(parsed, day, weekStart), day, weekStart);
+/** A member's saved progress for today, starting a fresh day or week when the saved state is older. */
+export async function getMemberState(userId: string): Promise<MemberState> {
+  const sql = await db();
+  const {day, weekStart} = istToday();
+  const [row] = await sql<{data: unknown}[]>`select data from member_state where user_id = ${userId}`;
+  return rollOver(sanitizeMemberState(row?.data ?? null, day, weekStart), day, weekStart);
 }
 
-/** Saves a member's progress and mirrors what staff need (progress, check-in, payment reference) onto their client record. */
-export function saveMemberState(userId: string, state: MemberState) {
-  const database = db();
-  const previous = database.prepare("select data from member_state where user_id = ?").get(userId) as {data: string} | undefined;
-  const before = previous ? sanitizeMemberState(JSON.parse(previous.data), state.day, state.weekStart) : null;
-  database.prepare("insert into member_state (user_id, data, updated_at) values (?, ?, datetime('now')) on conflict(user_id) do update set data = excluded.data, updated_at = excluded.updated_at")
-    .run(userId, JSON.stringify(state));
+const isoDate = /^\d{4}-\d{2}-\d{2}$/;
 
-  const client = database.prepare("select id from clients where user_id = ?").get(userId) as {id: string} | undefined;
-  if (!client) return;
-  // With a trainer schedule, progress is completed ÷ planned workouts; otherwise the sample week (3 of 4 done).
-  const plan = getWeekPlan(client.id, state.weekStart);
-  const planned = plan ? plan.flatMap((w, i) => w ? [i] : []) : [];
-  const completed = state.workout.completedDays.filter(d => planned.includes(d));
-  const progress = plan ? (planned.length ? Math.round((completed.length / planned.length) * 100) : 0) : state.workout.finished ? 100 : 75;
-  const todayIndex = (new Date(`${state.day}T00:00:00Z`).getUTCDay() + 6) % 7;
-  const trainedToday = plan ? completed.includes(todayIndex) : state.workout.finished;
-  database.prepare("update clients set progress = ?, last_workout = case when ? then 'Today' else last_workout end, next_checkin = ? where id = ?")
-    .run(progress, trainedToday ? 1 : 0, state.booking ?? "Not booked", client.id);
-  const checkinChanged = state.checkin.submitted && (!before?.checkin.submitted || before.checkin.energy !== state.checkin.energy || before.checkin.planFit !== state.checkin.planFit);
-  if (checkinChanged) {
-    database.prepare("update clients set stage = 'Check-in due', checkin_note = ? where id = ?")
-      .run(`Energy ${state.checkin.energy.toLowerCase()} · ${state.checkin.planFit.toLowerCase()}`, client.id);
-  }
-  if (state.payment.submitted && (!before?.payment.submitted || before.payment.reference !== state.payment.reference)) {
-    database.prepare("update clients set payment_reference = ? where id = ?").run(state.payment.reference, client.id);
-  }
+/**
+ * Saves a member's progress for today (India time, decided by the server) and mirrors what staff need onto their client record.
+ * The previous day's tracker and the previous week's full state are archived to member_history before being replaced.
+ */
+export async function saveMemberState(userId: string, input: unknown) {
+  const sql = await db();
+  const {day, weekStart} = istToday();
+  const sanitized = sanitizeMemberState(input, day, weekStart);
+  // A tab left open overnight sends yesterday's state: start it fresh rather than filing it under today.
+  const state = {...rollOver(sanitized, day, weekStart), day, weekStart};
+
+  await sql.begin(async tx => {
+    const [previousRow] = await tx<{data: unknown}[]>`select data from member_state where user_id = ${userId} for update`;
+    const before = previousRow ? sanitizeMemberState(previousRow.data, day, weekStart) : null;
+    if (before && isoDate.test(before.day) && before.day !== day) {
+      await tx`insert into member_history (user_id, period, period_start, data) values (${userId}, 'day', ${before.day}, ${tx.json(before.tracker as unknown as postgres.JSONValue)})
+        on conflict (user_id, period, period_start) do update set data = excluded.data`;
+    }
+    if (before && isoDate.test(before.weekStart) && before.weekStart !== weekStart) {
+      await tx`insert into member_history (user_id, period, period_start, data) values (${userId}, 'week', ${before.weekStart}, ${tx.json(before as unknown as postgres.JSONValue)})
+        on conflict (user_id, period, period_start) do update set data = excluded.data`;
+    }
+    await tx`insert into member_state (user_id, data, updated_at) values (${userId}, ${tx.json(state as unknown as postgres.JSONValue)}, now())
+      on conflict (user_id) do update set data = excluded.data, updated_at = excluded.updated_at`;
+
+    const [client] = await tx<{id: string}[]>`select id from clients where user_id = ${userId}`;
+    if (!client) return;
+    // Progress is completed ÷ planned workouts in the trainer's schedule; without a schedule there is nothing to measure.
+    const plan = await getWeekPlan(client.id, weekStart, tx);
+    const planned = plan ? plan.flatMap((w, i) => w ? [i] : []) : [];
+    const completed = state.workout.completedDays.filter(d => planned.includes(d));
+    const progress = planned.length ? Math.round((completed.length / planned.length) * 100) : 0;
+    const todayIndex = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
+    const trainedToday = plan ? completed.includes(todayIndex) : state.workout.finished || state.tracker.trained;
+    await tx`update clients set progress = ${progress}, next_checkin = ${state.booking ?? "Not booked"},
+      last_workout_on = case when ${trainedToday} then ${day}::date else last_workout_on end where id = ${client.id}`;
+    const sameWeek = before?.weekStart === weekStart;
+    const checkinChanged = state.checkin.submitted && (!sameWeek || !before?.checkin.submitted || before.checkin.energy !== state.checkin.energy || before.checkin.planFit !== state.checkin.planFit);
+    if (checkinChanged) {
+      await tx`update clients set stage = 'Check-in due', checkin_note = ${`Energy ${state.checkin.energy.toLowerCase()} · ${state.checkin.planFit.toLowerCase()}`} where id = ${client.id}`;
+    }
+    if (state.payment.submitted && (!before?.payment.submitted || before.payment.reference !== state.payment.reference)) {
+      await tx`update clients set payment_reference = ${state.payment.reference} where id = ${client.id}`;
+    }
+  });
 }
 
 type RawPlan = {day: number; title: string; exercises: string; start_time: string | null; duration_min: number | null; meeting_url: string | null};
 
 /** The client's plan for one week, or null when the trainer hasn't scheduled anything. */
-export function getWeekPlan(clientId: string, weekStart: string): WeekPlan | null {
-  const rows = db().prepare("select day, title, exercises, start_time, duration_min, meeting_url from workout_plans where client_id = ? and week_start = ?").all(clientId, weekStart) as RawPlan[];
+export async function getWeekPlan(clientId: string, weekStart: string, tx?: postgres.TransactionSql): Promise<WeekPlan | null> {
+  const sql = tx ?? await db();
+  const rows = await sql<RawPlan[]>`select day, title, exercises, start_time, duration_min, meeting_url from workout_plans where client_id = ${clientId} and week_start = ${weekStart}`;
   if (rows.length === 0) return null;
   const plan: WeekPlan = Array(7).fill(null);
   for (const r of rows) {
@@ -161,26 +240,35 @@ export function getWeekPlan(clientId: string, weekStart: string): WeekPlan | nul
   return plan.map(p => p && p.title === "__rest_week__" ? null : p);
 }
 
-export function saveWeekPlan(clientId: string, weekStart: string, plan: WeekPlan, trainerId: string) {
-  const database = db();
-  database.exec("begin");
-  try {
-    database.prepare("delete from workout_plans where client_id = ? and week_start = ?").run(clientId, weekStart);
-    const insert = database.prepare("insert into workout_plans (client_id, week_start, day, title, exercises, start_time, duration_min, meeting_url, updated_by) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    plan.forEach((w, day) => { if (w) insert.run(clientId, weekStart, day, w.title, w.exercises.join("\n"), w.time, w.durationMin, w.meetingUrl, trainerId); });
-    if (plan.every(w => w === null)) insert.run(clientId, weekStart, 6, "__rest_week__", "", null, null, null, trainerId);
-    database.exec("commit");
-  } catch (error) {
-    database.exec("rollback");
-    throw error;
+/** Every client's plan for the given weeks in one query, keyed "clientId|weekStart". */
+export async function getWeekPlans(clientIds: string[], weekStarts: string[]): Promise<Record<string, WeekPlan | null>> {
+  const plans: Record<string, WeekPlan | null> = {};
+  for (const c of clientIds) for (const w of weekStarts) plans[`${c}|${w}`] = null;
+  if (clientIds.length === 0) return plans;
+  const sql = await db();
+  const rows = await sql<(RawPlan & {client_id: string; week_start: string})[]>`
+    select client_id, week_start::text as week_start, day, title, exercises, start_time, duration_min, meeting_url
+    from workout_plans where client_id in ${sql(clientIds)} and week_start in ${sql(weekStarts)}`;
+  for (const r of rows) {
+    const key = `${r.client_id}|${r.week_start}`;
+    const plan = plans[key] ?? Array(7).fill(null);
+    if (r.title !== "__rest_week__") plan[r.day] = {title: r.title, exercises: r.exercises ? r.exercises.split("\n") : [], time: r.start_time, durationMin: r.duration_min, meetingUrl: r.meeting_url};
+    plans[key] = plan;
   }
+  return plans;
 }
 
-export function setMeetingUrl(clientId: string, url: string | null) {
-  db().prepare("update clients set meeting_url = ? where id = ?").run(url, clientId);
+export async function saveWeekPlan(clientId: string, weekStart: string, plan: WeekPlan, trainerId: string) {
+  const sql = await db();
+  await sql.begin(async tx => {
+    await tx`delete from workout_plans where client_id = ${clientId} and week_start = ${weekStart}`;
+    const rows = plan.flatMap((w, day) => w ? [{client_id: clientId, week_start: weekStart, day, title: w.title, exercises: w.exercises.join("\n"), start_time: w.time, duration_min: w.durationMin, meeting_url: w.meetingUrl, updated_by: trainerId}] : []);
+    if (rows.length === 0) rows.push({client_id: clientId, week_start: weekStart, day: 6, title: "__rest_week__", exercises: "", start_time: null, duration_min: null, meeting_url: null, updated_by: trainerId});
+    await tx`insert into workout_plans ${tx(rows)}`;
+  });
 }
 
-export function clientByUser(userId: string): ClientRow | null {
-  const row = db().prepare("select * from clients where user_id = ?").get(userId) as RawClient | undefined;
-  return row ? toClient(row) : null;
+export async function setMeetingUrl(clientId: string, url: string | null) {
+  const sql = await db();
+  await sql`update clients set meeting_url = ${url} where id = ${clientId}`;
 }

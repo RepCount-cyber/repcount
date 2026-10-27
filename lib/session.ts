@@ -5,7 +5,8 @@ import {isRole, type Role} from "./roles";
 export const SESSION_COOKIE = "rc_session";
 const SESSION_DAYS = 7;
 
-export type SessionPayload = {userId: string; role: Role; expiresAt: string};
+/** v is the user's session version; bumping it in the database revokes every cookie issued before. */
+export type SessionPayload = {userId: string; role: Role; v: number; expiresAt: string};
 
 function secretKey() {
   const secret = process.env.SESSION_SECRET;
@@ -30,7 +31,7 @@ export async function decrypt(token: string | undefined): Promise<SessionPayload
   try {
     const {payload} = await jwtVerify(token, secretKey(), {algorithms: ["HS256"]});
     if (typeof payload.userId !== "string" || !isRole(payload.role)) return null;
-    return {userId: payload.userId, role: payload.role, expiresAt: String(payload.expiresAt)};
+    return {userId: payload.userId, role: payload.role, v: typeof payload.v === "number" ? payload.v : 0, expiresAt: String(payload.expiresAt)};
   } catch {
     return null;
   }

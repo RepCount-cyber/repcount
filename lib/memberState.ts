@@ -18,21 +18,15 @@ export const planFits = ["Manageable", "I need shorter sessions", "I would like 
 export const feedbacks = ["", "Too easy", "About right", "Too difficult"] as const;
 export const preferences = ["Balanced", "Vegetarian"] as const;
 
-export const baseWeights: Point[] = [
-  {label: "D1", value: 78.4}, {label: "D3", value: 78.2}, {label: "D5", value: 78.1}, {label: "D7", value: 77.8}, {label: "D9", value: 77.7},
-];
-export const baseFats: Point[] = [
-  {label: "D1", value: 27.0}, {label: "D3", value: 26.9}, {label: "D5", value: 26.9}, {label: "D7", value: 26.7}, {label: "D9", value: 26.6},
-];
-
+/** Weigh-ins and body-fat estimates are dated points: label is the day (YYYY-MM-DD) the entry was logged. */
 export function defaultMemberState(day: string, weekStart: string): MemberState {
   return {
     day, weekStart,
-    tracker: {water: 3, steps: 4280, sleep: null, mood: null, trained: false, weights: baseWeights, fats: baseFats},
+    tracker: {water: 0, steps: 0, sleep: null, mood: null, trained: false, weights: [], fats: []},
     workout: {done: [], finished: false, feedback: "", completedDays: []},
     checkin: {submitted: false, energy: "Steady", planFit: "Manageable"},
     booking: null,
-    payment: {submitted: false, reference: "DEMO-299"},
+    payment: {submitted: false, reference: ""},
     nutrition: {preference: "Balanced", logged: [], water: {}},
   };
 }
@@ -74,7 +68,7 @@ export function sanitizeMemberState(input: unknown, day: string, weekStart: stri
     },
     checkin: {submitted: c.submitted === true, energy: pick(c.energy, energies, "Steady"), planFit: pick(c.planFit, planFits, "Manageable")},
     booking: typeof input.booking === "string" ? input.booking.slice(0, 60) : null,
-    payment: {submitted: p.submitted === true, reference: text(p.reference, 40, "DEMO-299")},
+    payment: {submitted: p.submitted === true, reference: text(p.reference, 40, "")},
     nutrition: {
       preference: pick(n.preference, preferences, "Balanced"),
       logged: Array.isArray(n.logged) ? n.logged.filter((k): k is string => typeof k === "string").slice(0, 100).map(k => k.slice(0, 40)) : [],

@@ -3,28 +3,27 @@ import test, { before, after } from 'node:test';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { SignJWT } from 'jose';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import postgres from 'postgres';
 
 // Runs against `next start` on a free port, so the proxy, layouts and server actions are exercised for real.
 const SESSION_SECRET = 'test-secret-'.padEnd(48, 'x');
 let server;
 let baseUrl;
-// Each run gets a throwaway database so local data is never touched.
-const dataDir = mkdtempSync(join(tmpdir(), 'repcount-test-'));
-const DATABASE_PATH = join(dataDir, 'test.db');
+// Each run wipes and reseeds TEST_DATABASE_URL, so it must name a throwaway database (its name has to contain "test").
+const DATABASE_URL = process.env.TEST_DATABASE_URL;
+if (!DATABASE_URL || !/test/i.test(new URL(DATABASE_URL).pathname)) throw new Error('Set TEST_DATABASE_URL to a throwaway Postgres database whose name contains "test".');
+const sql = postgres(DATABASE_URL, {max: 2, onnotice: () => {}});
 before(async () => {
+ await sql.unsafe('drop schema public cascade; create schema public;');
  const port = await new Promise(resolve => { const s = createServer(); s.listen(0, () => { const p = s.address().port; s.close(() => resolve(p)); }); });
  baseUrl = `http://127.0.0.1:${port}`;
- server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {env: {...process.env, SESSION_SECRET, DATABASE_PATH, GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'test-secret'}, stdio: 'ignore'});
+ server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {env: {...process.env, SESSION_SECRET, DATABASE_URL, SEED_DEMO_DATA: 'true', SHOW_DEMO_ACCOUNTS: 'false', GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'test-secret'}, stdio: 'ignore'});
  for (let i = 0; i < 100; i++) {
   try { await fetch(baseUrl + '/'); return; } catch { await new Promise(r => setTimeout(r, 100)); }
  }
  throw new Error('next start did not respond');
 });
-after(() => { server?.kill(); rmSync(dataDir, {recursive: true, force: true}); });
+after(async () => { server?.kill(); await sql.end(); });
 
 let rendered;
 function productionHomepage() {
@@ -35,7 +34,7 @@ function productionHomepage() {
  })();
  return rendered;
 }
-const sessionCookie = async (userId, role, secret = SESSION_SECRET) => 'rc_session=' + await new SignJWT({userId, role, expiresAt: new Date(Date.now() + 864e5).toISOString()}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1d').sign(new TextEncoder().encode(secret));
+const sessionCookie = async (userId, role, secret = SESSION_SECRET, v = 0) => 'rc_session=' + await new SignJWT({userId, role, v, expiresAt: new Date(Date.now() + 864e5).toISOString()}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1d').sign(new TextEncoder().encode(secret));
 const visit = (path, cookie) => fetch(baseUrl + path, {redirect:'manual', headers: cookie ? {cookie} : {}});
 const markupOnly = html => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
 const readableText = html => markupOnly(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -147,20 +146,14 @@ test('forged or mismatched sessions are rejected', async () => {
 
 test('live data drives the public price and the trainer’s check-in queue', async () => {
  await productionHomepage(); // creates and seeds the database
- const db = new DatabaseSync(DATABASE_PATH);
- db.prepare("update settings set value = ? where key = ?").run('INR', 'currency');
- db.prepare("update settings set value = ? where key = ?").run('7999', 'price');
- db.prepare("update clients set stage = 'Check-in due', checkin_note = ? where id = 'c-aarav'").run('Energy low · i need shorter sessions');
- db.close();
+ await sql`update settings set value = '7999' where key = 'price'`;
+ await sql`update clients set stage = 'Check-in due', checkin_note = 'Energy low · i need shorter sessions' where id = 'c-aarav'`;
  const home = readableText(await (await fetch(baseUrl + '/')).text());
- assert.match(home, /INR\s*7,999\s*\/\s*30 days/);
+ assert.match(home, /AED\s*7,999\s*\/\s*30 days/);
  const trainer = readableText(await (await visit('/trainer', await sessionCookie('u-trainer-akif', 'trainer'))).text());
  assert.match(trainer, /Energy low · i need shorter sessions/);
  assert.doesNotMatch(trainer, /Maya R\./, 'Trainers must only receive clients assigned to them');
- const reset = new DatabaseSync(DATABASE_PATH);
- reset.prepare("update settings set value = ? where key = ?").run('AED', 'currency');
- reset.prepare("update settings set value = ? where key = ?").run('299', 'price');
- reset.close();
+ await sql`update settings set value = '299' where key = 'price'`;
 });
 
 // Monday of the current week in India time, matching lib/dates.ts.
@@ -200,12 +193,12 @@ test('Google sign-in starts with state and PKCE and refuses a forged return', as
 test('a trainer’s schedule and meeting link reach the member’s plan', async () => {
  await productionHomepage();
  const week = istWeekStart();
- const db = new DatabaseSync(DATABASE_PATH);
- db.prepare("delete from workout_plans where client_id = 'c-aarav'").run();
- const insert = db.prepare("insert into workout_plans (client_id, week_start, day, title, exercises, start_time, duration_min, meeting_url, updated_by) values ('c-aarav', ?, ?, ?, ?, ?, ?, ?, 'u-trainer-akif')");
- for (let day = 0; day < 7; day++) insert.run(week, day, 'Lower body strength', 'Goblet squat · 3 × 10\nGlute bridge · 3 × 12', '18:30', 35, 'https://meet.google.com/abc-defg-hij');
- db.prepare("update clients set meeting_url = 'https://zoom.us/j/123456' where id = 'c-aarav'").run();
- db.close();
+ await sql`delete from workout_plans where client_id = 'c-aarav'`;
+ for (let day = 0; day < 7; day++) {
+  await sql`insert into workout_plans (client_id, week_start, day, title, exercises, start_time, duration_min, meeting_url, updated_by)
+   values ('c-aarav', ${week}, ${day}, 'Lower body strength', ${'Goblet squat · 3 × 10\nGlute bridge · 3 × 12'}, '18:30', 35, 'https://meet.google.com/abc-defg-hij', 'u-trainer-akif')`;
+ }
+ await sql`update clients set meeting_url = 'https://zoom.us/j/123456' where id = 'c-aarav'`;
  const member = await sessionCookie('u-member-aarav', 'member');
  const plan = await (await visit('/member/plan', member)).text();
  assert.match(readableText(plan), /Lower body strength/);
@@ -214,4 +207,34 @@ test('a trainer’s schedule and meeting link reach the member’s plan', async 
  assert.match(await (await visit('/member/team', member)).text(), /href="https:\/\/zoom\.us\/j\/123456"/);
  const trainer = readableText(await (await visit('/trainer?tab=schedule', await sessionCookie('u-trainer-akif', 'trainer'))).text());
  assert.match(trainer, /Plan the week/);
+});
+
+test('trainers open only their own clients’ detail pages', async () => {
+ const trainer = await sessionCookie('u-trainer-akif', 'trainer');
+ const page = await visit('/trainer/clients/c-kabir', trainer);
+ assert.equal(page.status, 200);
+ const text = readableText(await page.text());
+ assert.match(text, /Kabir M\./);
+ assert.doesNotMatch(text, /Deactivate/, 'Trainers must not see admin account controls');
+ assert.equal((await visit('/trainer/clients/c-maya', trainer)).status, 404, 'Unassigned clients are not visible to a trainer');
+ assert.equal((await visit('/trainer/clients/c-kabir', await sessionCookie('u-trainer-2', 'trainer'))).status, 404);
+});
+
+test('deactivating an account ends its existing sessions', async () => {
+ await productionHomepage();
+ const member = await sessionCookie('u-member-kabir', 'member');
+ assert.equal((await visit('/member/overview', member)).status, 200);
+ await sql`update users set active = false, session_version = session_version + 1 where id = 'u-member-kabir'`;
+ assert.match((await visit('/member/overview', member)).headers.get('location') ?? '', /\/login$/);
+ await sql`update users set active = true where id = 'u-member-kabir'`;
+ assert.match((await visit('/member/overview', member)).headers.get('location') ?? '', /\/login$/, 'An old cookie stays revoked after reactivation');
+ assert.equal((await visit('/member/overview', await sessionCookie('u-member-kabir', 'member', SESSION_SECRET, 1))).status, 200);
+});
+
+test('responses carry security headers', async () => {
+ const response = await visit('/login');
+ assert.equal(response.headers.get('x-frame-options'), 'DENY');
+ assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+ assert.match(response.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
+ assert.equal(response.headers.get('x-powered-by'), null);
 });

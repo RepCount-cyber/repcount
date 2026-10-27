@@ -4,6 +4,6 @@ import HomeClient from "./HomeClient";
 
 export default async function Home() {
   await connection(); // price comes from the live settings, not the build
-  const {price, currency} = getSettings();
+  const {price, currency} = await getSettings();
   return <HomeClient price={{amount: price, currency}}/>;
 }

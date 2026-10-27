@@ -12,6 +12,8 @@ const demoAccounts=[
   ['Member','member@repcount.demo','Member#2026'],
   ['Trainer','trainer@repcount.demo','Trainer#2026'],
   ['Super admin','admin@repcount.demo','Admin#2026'],
+  ['Trainer 2','trainer2@repcount.demo','Trainer2#2026'],
+  ['Member 2','member2@repcount.demo','Member2#2026'],
 ] as const;
 
 /** Sign-in for members, trainers and the super admin. Access requests remain a preview until intake is built. */

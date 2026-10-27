@@ -69,3 +69,24 @@
 @media(max-width:1000px){.rc-staff .rc-schedule-days>li,.rc-staff .rc-schedule-days>li.rest{grid-template-columns:1fr 1fr}.rc-staff .rc-schedule-days .rc-schedule-wide,.rc-staff .rc-schedule-day{grid-column:1/-1}}
 @media(max-width:700px){.rc-staff .rc-schedule-pick{grid-template-columns:1fr}.rc-staff .rc-schedule-link{flex-direction:column;align-items:stretch}}
 .rc-staff .notice.notice-error{background:#fdecec;border-color:#f4c4c9;color:#a3122a}
+/* Phones: tables become one card per row, so nothing scrolls sideways. */
+@media(max-width:700px){
+  .rc-staff table.rc-cards,.rc-staff table.rc-cards tbody,.rc-staff table.rc-cards tr,.rc-staff table.rc-cards td{display:block;width:100%}
+  .rc-staff table.rc-cards{min-width:0}
+  .rc-staff table.rc-cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .rc-staff table.rc-cards tr{border:1px solid #e9e5dd;border-radius:12px;padding:6px 14px;margin-bottom:10px;background:#fffdf8}
+  .rc-staff table.rc-cards td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border:0;border-top:1px solid #f0ece4;text-align:right;min-height:0}
+  .rc-staff table.rc-cards td:first-child{border-top:0;justify-content:flex-start;text-align:left}
+  .rc-staff table.rc-cards td:first-child::before{content:none}
+  .rc-staff table.rc-cards td::before{content:attr(data-label);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#868279;text-align:left;flex-shrink:0}
+  .rc-staff table.rc-cards td select{max-width:60%;margin:0}
+  .rc-staff table.rc-cards td progress{flex:1;max-width:45%}
+  .rc-staff table.rc-cards .member-empty-row td{justify-content:center;text-align:center}
+  .rc-staff .table-scroll{overflow:visible}
+  .rc-staff .filters{flex-direction:column;gap:10px}
+  .rc-staff .filters input,.rc-staff .filters select{max-width:none;margin:0}
+}
+/* Admin stage picker beside the client's name; drops below it on phones. */
+.rc-staff .rc-detail-stage{display:flex;flex-direction:column;gap:6px;min-width:190px}
+.rc-staff .rc-detail-stage select{min-height:42px;padding:0 12px;border:1px solid #d8dece;border-radius:8px;background:#fffdf8;font:inherit;font-size:14px;font-weight:600;color:#252822}
+@media(max-width:700px){.rc-staff .rc-detail-heading{flex-wrap:wrap;align-items:flex-start}.rc-staff .rc-detail-stage{width:100%;min-width:0}}

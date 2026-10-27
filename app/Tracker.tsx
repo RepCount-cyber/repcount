@@ -13,18 +13,11 @@ import "./tracker.css";
 export const palette = {red: "#e51937", ink: "#292d26", sage: "#7d8f6b", clay: "#d9a47f", lilac: "#9b8fb8", mist: "#c9cdbf"};
 const targetWeight = 72;
 const targetFat = 22;
-const startWeight = 78.4;
 const stepGoal = 6000;
 const moods = ["Low", "Okay", "Good", "Great"] as const;
 type Mood = (typeof moods)[number];
 type Point = {label: string; value: number};
 
-const baseWeights: Point[] = [
-  {label: "D1", value: 78.4}, {label: "D3", value: 78.2}, {label: "D5", value: 78.1}, {label: "D7", value: 77.8}, {label: "D9", value: 77.7},
-];
-const baseFats: Point[] = [
-  {label: "D1", value: 27.0}, {label: "D3", value: 26.9}, {label: "D5", value: 26.9}, {label: "D7", value: 26.7}, {label: "D9", value: 26.6},
-];
 const pastDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 const pastSteps = [5200, 6100, 3900, 7400, 4800, 5600];
 const pastSleep = [6.5, 7, 6, 7.5, 7, 6.8];
@@ -32,21 +25,24 @@ const pastWater = [5, 6, 4, 7, 5, 6];
 // 30-day journey: 0 = missed, 1-3 = how many daily check-ins were completed. Days 1-9 are sample history.
 const journeyHistory = [3, 2, 3, 0, 3, 2, 3, 1, 3];
 
-function upsertToday(points: Point[], value: number): Point[] {
+/** Points are labelled with the day they were logged (YYYY-MM-DD); logging again the same day replaces that day's entry. */
+function upsertDay(points: Point[], day: string, value: number): Point[] {
   const rounded = Math.round(value * 10) / 10;
-  const last = points[points.length - 1];
-  if (last && last.label === "Today") return [...points.slice(0, -1), {label: "Today", value: rounded}];
-  return [...points, {label: "Today", value: rounded}];
+  return [...points.filter(p => p.label !== day), {label: day, value: rounded}].slice(-60);
 }
+const chartLabel = (label: string) => /^\d{4}-\d{2}-\d{2}$/.test(label)
+  ? new Date(`${label}T00:00:00Z`).toLocaleDateString("en-GB", {day: "numeric", month: "short", timeZone: "UTC"})
+  : label;
+const forChart = (points: Point[]) => points.map(p => ({label: chartLabel(p.label), value: p.value}));
 
-export function useTracker(initial?: MemberState["tracker"]) {
+export function useTracker(initial: MemberState["tracker"] | undefined, day: string) {
   const [water, setWater] = useState(initial?.water ?? 3);
   const [steps, setSteps] = useState(initial?.steps ?? 4280);
   const [sleep, setSleep] = useState<number | null>(initial?.sleep ?? null);
   const [mood, setMood] = useState<Mood | null>((initial?.mood as Mood | null) ?? null);
   const [trained, setTrained] = useState(initial?.trained ?? false);
-  const [weights, setWeights] = useState<Point[]>(initial?.weights ?? baseWeights);
-  const [fats, setFats] = useState<Point[]>(initial?.fats ?? baseFats);
+  const [weights, setWeights] = useState<Point[]>(initial?.weights ?? []);
+  const [fats, setFats] = useState<Point[]>(initial?.fats ?? []);
   const checks = [water > 0, steps > 0, sleep !== null, mood !== null, trained];
   const done = checks.filter(Boolean).length;
   const todayLevel = Math.min(3, Math.round((done / 5) * 3));
@@ -56,8 +52,8 @@ export function useTracker(initial?: MemberState["tracker"]) {
   return {
     water, setWater, steps, setSteps, sleep, setSleep, mood, setMood, trained, setTrained,
     weights, fats, done, checks, journey, streak,
-    logWeight: (value: number) => setWeights(previous => upsertToday(previous, value)),
-    logFat: (value: number) => setFats(previous => upsertToday(previous, value)),
+    logWeight: (value: number) => setWeights(previous => upsertDay(previous, day, value)),
+    logFat: (value: number) => setFats(previous => upsertDay(previous, day, value)),
   };
 }
 export type Tracker = ReturnType<typeof useTracker>;
@@ -160,7 +156,7 @@ export function DailyTracker({t, onProgress}: {t: Tracker; onProgress?: () => vo
   const ring = {"--progress": `${(t.done / 5) * 100}%`} as CSSProperties;
   return <section className="card tk-daily" aria-labelledby="tk-daily-title">
     <div className="tk-daily-head">
-      <div><span className="eyebrow">YOUR DAILY TRACKER · SAMPLE</span><h2 id="tk-daily-title">Today, in a few taps.</h2><p>Log how your day is going. Your trainer sees only what you choose to share.</p></div>
+      <div><span className="eyebrow">YOUR DAILY TRACKER</span><h2 id="tk-daily-title">Today, in a few taps.</h2><p>Log how your day is going. Your trainer sees only what you choose to share.</p></div>
       <div className="tk-ring" style={ring} role="img" aria-label={`${t.done} of 5 daily check-ins complete`}><div><strong>{t.done}<small>/5</small></strong><span>check-ins</span></div></div>
     </div>
     <div className="tk-daily-grid">
@@ -172,8 +168,8 @@ export function DailyTracker({t, onProgress}: {t: Tracker; onProgress?: () => vo
         <span className="tk-tile-label"><Icon name="move" size={16}/> Steps</span>
         <strong className="tk-big" aria-live="polite">{t.steps.toLocaleString("en-IN")}</strong>
         <input type="range" min={0} max={15000} step={250} value={t.steps} aria-label="Steps today" onChange={e => t.setSteps(Number(e.target.value))}/>
-        <Meter value={t.steps} max={stepGoal} label="Progress to sample step goal"/>
-        <small>{t.steps >= stepGoal ? "Sample goal reached" : `Sample goal ${stepGoal.toLocaleString("en-IN")}`}</small>
+        <Meter value={t.steps} max={stepGoal} label="Progress to daily step goal"/>
+        <small>{t.steps >= stepGoal ? "Daily goal reached" : `Daily goal ${stepGoal.toLocaleString("en-IN")}`}</small>
       </div>
       <div className="tk-tile">
         <span className="tk-tile-label"><Icon name="sun" size={16}/> Sleep last night</span>
@@ -203,11 +199,13 @@ export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finis
   const [weightInput, setWeightInput] = useState("");
   const [fatInput, setFatInput] = useState("");
   const [message, setMessage] = useState("");
-  const current = t.weights[t.weights.length - 1].value;
-  const fat = t.fats[t.fats.length - 1].value;
-  const lost = startWeight - current;
-  const pct = Math.max(0, Math.min(100, Math.round((lost / (startWeight - targetWeight)) * 100)));
-  const fatLeft = Math.max(0, fat - targetFat);
+  // Progress is measured from the member's first weigh-in; with no entries yet the cards invite one.
+  const current = t.weights.at(-1)?.value ?? null;
+  const startWeight = t.weights[0]?.value ?? null;
+  const fat = t.fats.at(-1)?.value ?? null;
+  const lost = current !== null && startWeight !== null ? startWeight - current : 0;
+  const pct = startWeight !== null && startWeight > targetWeight ? Math.max(0, Math.min(100, Math.round((lost / (startWeight - targetWeight)) * 100))) : 0;
+  const fatLeft = fat !== null ? Math.max(0, fat - targetFat) : 0;
   const week: Bar[] = [
     {label: "Mon", value: 20, planned: 20}, {label: "Tue", value: 0}, {label: "Wed", value: 25, planned: 25}, {label: "Thu", value: 0},
     {label: "Fri", value: 20, planned: 20}, {label: "Sat", value: finished ? 25 : 0, planned: 25, highlight: true}, {label: "Sun", value: 0},
@@ -226,24 +224,24 @@ export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finis
     const [min, max] = kind === "weight" ? [30, 250] : [3, 60];
     if (!raw || !Number.isFinite(value) || value < min || value > max) { setMessage(`Enter a ${kind === "weight" ? "weight in kg" : "body-fat %"} between ${min} and ${max}.`); return; }
     if (kind === "weight") { t.logWeight(value); setWeightInput(""); } else { t.logFat(value); setFatInput(""); }
-    setMessage(`Sample ${kind === "weight" ? "weigh-in" : "body-fat entry"} added to the chart for this visit.`);
+    setMessage(`${kind === "weight" ? "Weigh-in" : "Body-fat estimate"} saved and added to your chart.`);
   }
   return <div className="tk-progress">
     <div className="tk-kpis">
-      <section className="card tk-kpi"><span className="eyebrow">CURRENT WEIGHT</span><strong>{current.toFixed(1)}<small>kg</small></strong><p>{lost > 0 ? `${lost.toFixed(1)} kg since day 1` : lost < 0 ? `${Math.abs(lost).toFixed(1)} kg above day 1` : "Same as day 1"}</p></section>
-      <section className="card tk-kpi"><span className="eyebrow">TARGET WEIGHT</span><strong>{targetWeight}<small>kg</small></strong><Meter value={pct} max={100} label="Progress towards sample target weight"/><p>{pct}% of the way · {(current - targetWeight).toFixed(1)} kg to go</p></section>
-      <section className="card tk-kpi"><span className="eyebrow">BODY FAT (ESTIMATE)</span><strong>{fat.toFixed(1)}<small>%</small></strong><p>Sample target {targetFat}% · {fatLeft.toFixed(1)} points to go</p></section>
+      <section className="card tk-kpi"><span className="eyebrow">CURRENT WEIGHT</span><strong>{current !== null ? current.toFixed(1) : "—"}<small>kg</small></strong><p>{current === null ? "Log your first weigh-in below." : t.weights.length < 2 ? "Your starting point." : lost > 0 ? `${lost.toFixed(1)} kg since your first weigh-in` : lost < 0 ? `${Math.abs(lost).toFixed(1)} kg above your first weigh-in` : "Same as your first weigh-in"}</p></section>
+      <section className="card tk-kpi"><span className="eyebrow">TARGET WEIGHT</span><strong>{targetWeight}<small>kg</small></strong><Meter value={pct} max={100} label="Progress towards target weight"/><p>{current === null ? "Starts with your first weigh-in" : `${pct}% of the way · ${Math.max(0, current - targetWeight).toFixed(1)} kg to go`}</p></section>
+      <section className="card tk-kpi"><span className="eyebrow">BODY FAT (ESTIMATE)</span><strong>{fat !== null ? fat.toFixed(1) : "—"}<small>%</small></strong><p>{fat === null ? "Log an estimate below." : `Target ${targetFat}% · ${fatLeft.toFixed(1)} points to go`}</p></section>
       <section className="card tk-kpi"><span className="eyebrow">CONSISTENCY STREAK</span><strong>{t.streak}<small>{t.streak === 1 ? "day" : "days"}</small></strong><p>{t.done} of 5 check-ins today</p></section>
     </div>
 
     <div className="tk-grid-2">
       <Panel eyebrow="WEIGHT TREND" title="Steady beats fast.">
-        <LineChart points={t.weights} target={targetWeight} unit="kg" label="Weight trend" targetLabel={`Target ${targetWeight} kg`}/>
-        <form className="tk-log" onSubmit={e => { e.preventDefault(); submit("weight"); }}><label>Log today&rsquo;s weight (kg)<input inputMode="decimal" value={weightInput} onChange={e => setWeightInput(e.target.value)} placeholder="e.g. 77.4" maxLength={5}/></label><button className="button dark" type="submit">Add sample weigh-in</button></form>
+        {t.weights.length > 0 ? <LineChart points={forChart(t.weights)} target={targetWeight} unit="kg" label="Weight trend" targetLabel={`Target ${targetWeight} kg`}/> : <p className="tk-caption">No weigh-ins yet. Your trend appears here once you log one.</p>}
+        <form className="tk-log" onSubmit={e => { e.preventDefault(); submit("weight"); }}><label>Log today&rsquo;s weight (kg)<input inputMode="decimal" value={weightInput} onChange={e => setWeightInput(e.target.value)} placeholder="e.g. 77.4" maxLength={5}/></label><button className="button dark" type="submit">Save weigh-in</button></form>
       </Panel>
       <Panel eyebrow="BODY COMPOSITION" title="Body fat, in context.">
-        <LineChart points={t.fats} target={targetFat} unit="%" label="Body-fat estimate" color={palette.lilac} targetLabel={`Target ${targetFat}%`}/>
-        <form className="tk-log" onSubmit={e => { e.preventDefault(); submit("fat"); }}><label>Log body-fat estimate (%)<input inputMode="decimal" value={fatInput} onChange={e => setFatInput(e.target.value)} placeholder="e.g. 26.4" maxLength={5}/></label><button className="button dark" type="submit">Add sample estimate</button></form>
+        {t.fats.length > 0 ? <LineChart points={forChart(t.fats)} target={targetFat} unit="%" label="Body-fat estimate" color={palette.lilac} targetLabel={`Target ${targetFat}%`}/> : <p className="tk-caption">No estimates yet. Your trend appears here once you log one.</p>}
+        <form className="tk-log" onSubmit={e => { e.preventDefault(); submit("fat"); }}><label>Log body-fat estimate (%)<input inputMode="decimal" value={fatInput} onChange={e => setFatInput(e.target.value)} placeholder="e.g. 26.4" maxLength={5}/></label><button className="button dark" type="submit">Save estimate</button></form>
       </Panel>
     </div>
     {message && <p className="tk-message" role="status">{message}</p>}
@@ -276,7 +274,7 @@ export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finis
     </Panel>
 
     {checkinNode}
-    <p className="tk-disclaimer">Sample member and fictional numbers. Targets are illustrative and would be agreed with your trainer. Body-fat figures from scales and calipers are estimates that vary by method. This is not a health score, diagnosis or medical advice.</p>
+    <p className="tk-disclaimer">Earlier days are example history; today’s entries are yours and save automatically. Targets are agreed with your trainer. Body-fat figures from scales and calipers are estimates that vary by method. This is not a health score, diagnosis or medical advice.</p>
   </div>;
 }
 

@@ -10,8 +10,8 @@ import {roleHome, type Role} from "./roles";
 export const getCurrentUser = cache(async (): Promise<User | null> => {
   const session = await decrypt((await cookies()).get(SESSION_COOKIE)?.value);
   if (!session) return null;
-  const user = findUser(session.userId);
-  return user && user.role === session.role ? user : null;
+  const user = await findUser(session.userId);
+  return user && user.role === session.role && user.sessionVersion === session.v ? user : null;
 });
 
 export async function requireRole(role: Role): Promise<User> {
@@ -24,7 +24,7 @@ export async function requireRole(role: Role): Promise<User> {
 /** Sets the signed session cookie. Used by password sign-in and Google sign-in. */
 export async function startSession(user: User) {
   const expires = sessionExpiry();
-  const token = await encrypt({userId: user.id, role: user.role, expiresAt: expires.toISOString()});
+  const token = await encrypt({userId: user.id, role: user.role, v: user.sessionVersion, expiresAt: expires.toISOString()});
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
