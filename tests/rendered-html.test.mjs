@@ -45,8 +45,9 @@ test('production opens public coaching with an optional member demo', async () =
  assert.equal(headings.length, 1, 'Public homepage needs one primary heading');
  assert.match(readableText(headings[0][1]), /stronger.*own space/i);
  assert.match(html, /<main\b[^>]*id="rc-main"/i);
- assert.match(html, /<button\b[^>]*>\s*Member demo\b/i);
- assert.match(readableText(html), /interactive (?:design )?preview/i);
+ assert.match(html, /<button\b[^>]*>\s*Create your account\b/i);
+ assert.doesNotMatch(readableText(html), /\b(?:demo|interactive preview|sample)\b/i, 'The public site must not describe itself as a demo');
+ assert.doesNotMatch(html, /rc-preview-bar/, 'The preview strip has been removed');
  assert.doesNotMatch(html, /class="(?:sidebar|topbar)"/, 'Member workspace must not replace the public first view');
  assert.doesNotMatch(readableText(html), /ThriveMotion|Your site is taking shape/);
 });
@@ -60,7 +61,7 @@ test('pilot preserves confirmed scope and distinguishes future services', async 
  assert.match(text, /Manual payment, verified by the team/);
  assert.match(text, /personalised nutrition plans are not currently part of the confirmed pilot package/);
  assert.doesNotMatch(text, /psycholog|counsel|therap/i, 'The psychologist service has been withdrawn');
- assert.match(text, /No live enrolment,\s*payments or appointments/);
+ assert.match(text, /How do I join\?/);
  assert.doesNotMatch(text, /guaranteed (?:weight loss|results|transformation)|cures? depression|lose \d+\s*(?:kg|pounds)/i);
 });
 
@@ -74,7 +75,7 @@ test('public response protects project contacts and excludes rejected gym media'
  assert.match(readableText(html), /People shown are not presented as RepCount staff or clients/);
 });
 
-test('navigation and quiz labels refer to existing local targets', async () => {
+test('navigation links refer to existing local targets', async () => {
  const html = markupOnly(await productionHomepage());
  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
  const fragments = [...html.matchAll(/<a\b[^>]*\bhref="#([^"]*)"/gi)].map(match => match[1]);
@@ -83,11 +84,7 @@ test('navigation and quiz labels refer to existing local targets', async () => {
   assert.ok(fragment.length > 0, 'Empty hash links have no named target');
   assert.ok(ids.has(decodeURIComponent(fragment)), `Missing fragment target: ${fragment}`);
  }
- const dialog = html.match(/<dialog\b[^>]*>/i)?.[0];
- assert.ok(dialog, 'Starting-point quiz must use a native dialog');
- const labelId = dialog.match(/aria-labelledby="([^"]+)"/)?.[1];
- assert.ok(labelId && ids.has(labelId), 'Quiz needs an existing accessible title');
- assert.doesNotMatch(html, /<form\b[^>]*\baction=/i, 'Preview must not submit visitor details');
+ assert.doesNotMatch(html, /<dialog\b/i, 'Starting point is a page (/register), not a modal');
 });
 
 test('videos offer silent inline playback, posters and labelled controls', async () => {
@@ -204,7 +201,7 @@ test('a trainer’s schedule and meeting link reach the member’s plan', async 
  assert.match(readableText(plan), /Lower body strength/);
  assert.match(readableText(plan), /Goblet squat · 3 × 10/);
  assert.match(plan, /href="https:\/\/meet\.google\.com\/abc-defg-hij"/);
- assert.match(await (await visit('/member/team', member)).text(), /href="https:\/\/zoom\.us\/j\/123456"/);
+ assert.match(await (await visit('/member/profile', member)).text(), /href="https:\/\/zoom\.us\/j\/123456"/);
  const trainer = readableText(await (await visit('/trainer?tab=schedule', await sessionCookie('u-trainer-akif', 'trainer'))).text());
  assert.match(trainer, /Plan the week/);
 });
@@ -237,4 +234,51 @@ test('responses carry security headers', async () => {
  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
  assert.match(response.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
  assert.equal(response.headers.get('x-powered-by'), null);
+});
+
+// Submits a server-action form the way a browser without JavaScript would.
+async function submitForm(path, fields, ip = '10.20.30.40') {
+ const html = await (await fetch(baseUrl + path)).text();
+ const form = html.match(/<form[^>]*>[\s\S]*?<\/form>/)[0];
+ const body = new FormData();
+ for (const m of form.matchAll(/<input[^>]*type="hidden"[^>]*>/g)) {
+  const name = m[0].match(/name="([^"]+)"/)?.[1];
+  if (name) body.append(name, (m[0].match(/value="([^"]*)"/)?.[1] ?? '').replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+ }
+ for (const [k, v] of Object.entries(fields)) body.append(k, v);
+ return fetch(baseUrl + path, {method: 'POST', body, redirect: 'manual', headers: {origin: baseUrl, 'x-forwarded-for': ip}});
+}
+
+test('visitors register, land on their profile page, and staff see their answers', async () => {
+ const page = await visit('/register');
+ assert.equal(page.status, 200);
+ const html = await page.text();
+ for (const name of ['name', 'email', 'password', 'goal', 'place', 'days', 'adult']) assert.match(html, new RegExp(`name="${name}"`), name);
+ const fields = {name: 'Lina Haddad', email: 'lina@example.com', phone: '+971 50 000 0000', password: 'LinaPass#2026', goal: 'Improve mobility', place: 'At a gym', days: '2 days a week'};
+ const refused = await submitForm('/register', fields);
+ assert.equal(refused.headers.get('set-cookie')?.includes('rc_session='), undefined, 'The adult confirmation is required');
+ const created = await submitForm('/register', {...fields, adult: 'on'});
+ assert.match(created.headers.get('set-cookie') ?? '', /rc_session=/);
+ assert.match(created.headers.get('location') ?? created.headers.get('x-action-redirect') ?? '', /\/member\/profile/);
+ const [client] = await sql`select c.id, c.stage, c.goal, c.intake, u.role from clients c join users u on u.id = c.user_id where c.email = 'lina@example.com'`;
+ assert.equal(client.role, 'member');
+ assert.equal(client.stage, 'Payment review');
+ assert.deepEqual(client.intake, {place: 'At a gym', days: '2 days a week'});
+ const detail = readableText(await (await visit(`/admin/clients/${client.id}`, await sessionCookie('u-admin', 'admin'))).text());
+ assert.match(detail, /At a gym · 2 days a week/);
+ const again = await submitForm('/register', {...fields, adult: 'on'}, '10.20.30.41');
+ assert.match(await again.text(), /already exists/);
+ assert.match((await visit('/register', await sessionCookie('u-member-aarav', 'member'))).headers.get('location') ?? '', /\/member\/overview$/);
+});
+
+test('members without a schedule see no invented workouts', async () => {
+ const [{session_version: v}] = await sql`select session_version from users where id = 'u-member-kabir'`;
+ const member = await sessionCookie('u-member-kabir', 'member', SESSION_SECRET, v);
+ const plan = readableText(await (await visit('/member/plan', member)).text());
+ assert.match(plan, /Your plan is on its way/);
+ for (const path of ['/member/overview', '/member/plan', '/member/progress', '/member/profile', '/member/nutrition']) {
+  // Email addresses are ignored: the seeded test accounts live on repcount.demo.
+  const text = readableText(await (await visit(path, member)).text()).replace(/\S+@\S+/g, '');
+  assert.doesNotMatch(text, /\b(?:demo|sample|preview|illustrative)\b/i, path);
+ }
 });

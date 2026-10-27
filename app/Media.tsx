@@ -123,7 +123,7 @@ export default function Film({clip='home', className='', controls=true, priority
   },[error]);
   function retry(){restoreRetryFocus.current=true;setError(false);element.current?.load();void toggle();}
   return <div className={`rc-film ${className}`} ref={wrapper} data-clip={clip}>
-    <video ref={element} src={loaded?asset.src:undefined} poster={asset.poster} muted playsInline loop preload="metadata" data-priority={priority||undefined} aria-label={`${asset.title} — illustrative stock video`}
+    <video ref={element} src={loaded?asset.src:undefined} poster={asset.poster} muted playsInline loop preload="metadata" data-priority={priority||undefined} aria-label={`${asset.title} — video`}
       onLoadedMetadata={e=>{setDuration(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0);setError(false);synchronize.current();}}
       onTimeUpdate={e=>setTime(e.currentTarget.currentTime)}
       onEmptied={()=>{setTime(0);setDuration(0);setPlaying(false);setWaiting(false);setError(false);}}

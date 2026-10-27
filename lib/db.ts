@@ -51,6 +51,7 @@ const schema = `
     meeting_url text
   );
   create index if not exists clients_trainer_idx on clients (trainer_id);
+  alter table clients add column if not exists intake jsonb;
   create table if not exists member_state (
     user_id text primary key references users(id) on delete cascade,
     data jsonb not null,
@@ -89,6 +90,14 @@ const schema = `
     created_at timestamptz not null default now()
   );
   create index if not exists audit_subject_idx on audit_log (subject_id);
+  create table if not exists messages (
+    id bigserial primary key,
+    client_id text not null references clients(id) on delete cascade,
+    author_id text not null,
+    body text not null,
+    created_at timestamptz not null default now()
+  );
+  create index if not exists messages_client_idx on messages (client_id, id desc);
   create table if not exists login_attempts (
     key text primary key,
     count integer not null,

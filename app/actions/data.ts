@@ -16,6 +16,20 @@ export async function saveProgress(input: unknown) {
   await store.saveMemberState(user.id, input);
 }
 
+/** A member's question for their trainer; staff see it on the client page. */
+export async function askCoach(body: string): Promise<Result> {
+  const user = await requireRole("member");
+  const text = String(body ?? "").trim();
+  if (text.length < 3 || text.length > 1000) return {error: "Write your question (up to 1,000 characters)."};
+  const client = await store.clientByUser(user.id);
+  if (!client) return {error: "Your client record isn’t set up yet. Please contact the team."};
+  await store.addMessage(client.id, user.id, text);
+  await store.audit(user.id, "ask_coach", `${client.name} asked a question`, client.id);
+  revalidatePath("/trainer", "layout");
+  revalidatePath("/admin", "layout");
+  return {ok: `Sent to ${client.trainer === "Unassigned" ? "the team" : client.trainer}. They’ll reply at your next check-in or by email.`};
+}
+
 export async function assignTrainer(clientId: string, trainerId: string): Promise<Result> {
   const user = await requireRole("admin");
   const client = await store.getClient(clientId);

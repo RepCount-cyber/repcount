@@ -4,5 +4,5 @@ import Landing from "./Landing";
 
 export default function HomeClient({price}: {price: {amount: string; currency: string}}) {
   const router = useRouter();
-  return <Landing price={price} onEnter={() => router.push("/login")} onLogin={() => router.push("/login")}/>;
+  return <Landing price={price} onRegister={() => router.push("/register")} onLogin={() => router.push("/login")}/>;
 }

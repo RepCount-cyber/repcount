@@ -11,14 +11,17 @@ export type ClientRow = {
   id: string; name: string; initials: string; stage: string; trainerId: string | null; trainer: string; paid: boolean; progress: number;
   goal: string; lastWorkout: string; lastWorkoutOn: string | null; nextCheckIn: string; reference: string | null; checkinNote: string | null;
   email: string | null; phone: string | null; joinedOn: string | null; userId: string | null; accountActive: boolean | null; meetingUrl: string | null;
+  intake: Intake | null;
 };
+/** What a member told us when they registered. */
+export type Intake = {place: string; days: string};
 export {currency, stages} from "./programme";
 export type Settings = {price: string; currency: typeof currency; cohortSize: string};
 
 type RawClient = {
   id: string; user_id: string | null; name: string; initials: string; stage: string; trainer_id: string | null; trainer_name: string | null; paid: boolean; progress: number;
   goal: string; last_workout_on: string | null; next_checkin: string; payment_reference: string | null; checkin_note: string | null;
-  email: string | null; phone: string | null; joined_on: string | null; account_active: boolean | null; meeting_url: string | null;
+  email: string | null; phone: string | null; joined_on: string | null; account_active: boolean | null; meeting_url: string | null; intake: Intake | null;
 };
 
 /** "Today", "Yesterday", "3 days ago" relative to today in India time. */
@@ -32,12 +35,13 @@ const toClient = (r: RawClient, today: string): ClientRow => ({
   id: r.id, name: r.name, initials: r.initials, stage: r.stage, trainerId: r.trainer_id, trainer: r.trainer_name ?? "Unassigned", paid: r.paid, progress: r.progress,
   goal: r.goal, lastWorkout: relativeDay(r.last_workout_on, today), lastWorkoutOn: r.last_workout_on, nextCheckIn: r.next_checkin, reference: r.payment_reference,
   checkinNote: r.checkin_note, email: r.email, phone: r.phone, joinedOn: r.joined_on, userId: r.user_id, accountActive: r.account_active, meetingUrl: r.meeting_url,
+  intake: r.intake ? {place: String(r.intake.place ?? ""), days: String(r.intake.days ?? "")} : null,
 });
 
 const clientSelect = (sql: postgres.Sql) => sql`
   select c.id, c.user_id, c.name, c.initials, c.stage, c.trainer_id, t.name as trainer_name, c.paid, c.progress, c.goal,
     c.last_workout_on::text as last_workout_on, c.next_checkin, c.payment_reference, c.checkin_note, c.email, c.phone,
-    c.joined_on::text as joined_on, u.active as account_active, c.meeting_url
+    c.joined_on::text as joined_on, u.active as account_active, c.meeting_url, c.intake
   from clients c left join users t on t.id = c.trainer_id left join users u on u.id = c.user_id`;
 
 export async function listClients(trainerId?: string): Promise<ClientRow[]> {
@@ -59,10 +63,10 @@ export async function clientByUser(userId: string): Promise<ClientRow | null> {
   return row ? toClient(row, istToday().day) : null;
 }
 
-export async function createClient(input: {id: string; userId: string; name: string; initials: string; email: string; phone: string | null; goal: string; trainerId: string | null}) {
+export async function createClient(input: {id: string; userId: string; name: string; initials: string; email: string; phone: string | null; goal: string; trainerId: string | null; intake?: Intake}) {
   const sql = await db();
-  await sql`insert into clients (id, user_id, name, initials, stage, trainer_id, goal, email, phone, joined_on)
-    values (${input.id}, ${input.userId}, ${input.name}, ${input.initials}, 'Payment review', ${input.trainerId}, ${input.goal}, ${input.email}, ${input.phone}, ${istToday().day})`;
+  await sql`insert into clients (id, user_id, name, initials, stage, trainer_id, goal, email, phone, joined_on, intake)
+    values (${input.id}, ${input.userId}, ${input.name}, ${input.initials}, 'Payment review', ${input.trainerId}, ${input.goal}, ${input.email}, ${input.phone}, ${istToday().day}, ${input.intake ? sql.json(input.intake) : null})`;
 }
 
 export async function assignTrainer(id: string, trainerId: string | null) {
@@ -143,7 +147,8 @@ export async function trainerAnalytics(): Promise<TrainerStats[]> {
 }
 
 export type PastWeek = {weekStart: string; workoutsDone: number; checkin: string | null};
-export type ClientDetail = {client: ClientRow; state: MemberState | null; history: AuditEntry[]; lastSaved: string | null; plan: WeekPlan | null; pastWeeks: PastWeek[]};
+export type Message = {body: string; at: string; author: string};
+export type ClientDetail = {client: ClientRow; state: MemberState | null; history: AuditEntry[]; lastSaved: string | null; plan: WeekPlan | null; pastWeeks: PastWeek[]; messages: Message[]};
 
 /** Everything staff can see about one client: record, saved member progress, past weeks and action history. */
 export async function clientDetail(id: string): Promise<ClientDetail | null> {
@@ -164,7 +169,7 @@ export async function clientDetail(id: string): Promise<ClientDetail | null> {
     });
   }
   const history = plainAudit(await sql<AuditEntry[]>`${auditSelect(sql)} where a.subject_id = ${id} order by a.id desc limit 50`);
-  return {client, state, history, lastSaved, plan: await getWeekPlan(id, istToday().weekStart), pastWeeks};
+  return {client, state, history, lastSaved, plan: await getWeekPlan(id, istToday().weekStart), pastWeeks, messages: await listMessages(id)};
 }
 
 /** A member's saved progress for today, starting a fresh day or week when the saved state is older. */
@@ -173,6 +178,33 @@ export async function getMemberState(userId: string): Promise<MemberState> {
   const {day, weekStart} = istToday();
   const [row] = await sql<{data: unknown}[]>`select data from member_state where user_id = ${userId}`;
   return rollOver(sanitizeMemberState(row?.data ?? null, day, weekStart), day, weekStart);
+}
+
+/** A member's question for their trainer. */
+export async function addMessage(clientId: string, authorId: string, body: string) {
+  const sql = await db();
+  await sql`insert into messages (client_id, author_id, body) values (${clientId}, ${authorId}, ${body})`;
+}
+
+export async function listMessages(clientId: string, limit = 20): Promise<Message[]> {
+  const sql = await db();
+  const rows = await sql<Message[]>`
+    select m.body, to_char(m.created_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as at, coalesce(u.name, m.author_id) as author
+    from messages m left join users u on u.id = m.author_id where m.client_id = ${clientId} order by m.id desc limit ${limit}`;
+  return rows.map(({body, at, author}) => ({body, at, author}));
+}
+
+/** One archived day of a member's daily tracker. */
+export type DayLog = {day: string; water: number; steps: number; sleep: number | null; mood: string | null; trained: boolean};
+
+/** The member's archived days since the given date (oldest first), for habit charts and the 30-day calendar. */
+export async function getMemberDays(userId: string, since: string): Promise<DayLog[]> {
+  const sql = await db();
+  const rows = await sql<{day: string; data: Record<string, unknown>}[]>`
+    select period_start::text as day, data from member_history where user_id = ${userId} and period = 'day' and period_start >= ${since} order by period_start`;
+  const num = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+  return rows.map(r => ({day: r.day, water: num(r.data.water), steps: num(r.data.steps), sleep: typeof r.data.sleep === "number" ? r.data.sleep : null,
+    mood: typeof r.data.mood === "string" ? r.data.mood : null, trained: r.data.trained === true}));
 }
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;

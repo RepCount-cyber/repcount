@@ -33,7 +33,7 @@ const headings: Record<string, [string, string]> = {
   settings: ["Programme settings.", "Pricing and cohort rules for the pilot."],
 };
 
-export const activityLabels: Record<string, string> = {assign_trainer: "Trainer assigned", verify_payment: "Payment verified", review_checkin: "Check-in reviewed", update_settings: "Settings updated", add_trainer: "Trainer added", schedule_week: "Week scheduled", set_meeting_link: "Call link updated", add_client: "Client added", set_stage: "Stage changed", deactivate_user: "Account deactivated", reactivate_user: "Account reactivated"};
+export const activityLabels: Record<string, string> = {assign_trainer: "Trainer assigned", verify_payment: "Payment verified", review_checkin: "Check-in reviewed", update_settings: "Settings updated", add_trainer: "Trainer added", schedule_week: "Week scheduled", set_meeting_link: "Call link updated", add_client: "Client added", set_stage: "Stage changed", deactivate_user: "Account deactivated", reactivate_user: "Account reactivated", self_register: "Registered online", ask_coach: "Question sent"};
 const stageOrder = ["Payment review", "Onboarding", "Check-in due", "Active"];
 const sorters: Record<string, (a: ClientRow, b: ClientRow) => number> = {
   Name: (a, b) => a.name.localeCompare(b.name),
@@ -200,7 +200,7 @@ export default function StaffApp({area: role, user, clients, settings, activity,
             <div><span>Payment</span><b>Manual transfer, verified by admin</b></div>
             <button className="button dark" type="submit" disabled={pending}>{pending ? "Saving…" : "Save settings"}</button>
           </form>
-          <p className="small-note">Members see the new price on their membership page straight away.</p></section>}
+          <p className="small-note">Members see the new price on their profile page straight away.</p></section>}
         </>}
         <footer><span><Brand variant="phone"/></span><span>{role === "admin" ? "Super admin" : "Trainer"} · signed in as {user.email}</span></footer>
       </main>

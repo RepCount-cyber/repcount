@@ -10,14 +10,13 @@ import type {ClientDetail as Detail} from "@/lib/store";
 import {stages} from "@/lib/programme";
 import {dayNames, formatTime} from "@/lib/schedule";
 
-const exerciseNames = ["Easy warm-up", "Chair squat", "Wall push-up", "Standing calf raise", "Gentle cool-down"];
 const formatDate = (iso: string | null) => iso ? new Date(`${iso.length === 10 ? iso + "T00:00:00Z" : iso.replace(" ", "T") + "Z"}`).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"}) : "—";
 
 const shortDate = (label: string) => /^\d{4}-\d{2}-\d{2}$/.test(label) ? formatDate(label).replace(/ \d{4}$/, "") : label;
 
 /** One client: profile, membership, coaching, saved progress and history. Admins can also change payment, trainer, stage and access. */
 export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin" | "trainer"; detail: Detail; trainers: {id: string; name: string}[]}) {
-  const {client: c, state, history, lastSaved, plan, pastWeeks} = detail;
+  const {client: c, state, history, lastSaved, plan, pastWeeks, messages} = detail;
   const admin = viewer === "admin";
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
@@ -58,6 +57,7 @@ export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin
         <div><dt>Payment</dt><dd>{c.paid ? <span className="paid">Verified ✓</span> : !admin ? "Awaiting verification" : <button className="small-button" disabled={pending} onClick={() => run(() => verifyPayment(c.id))}>Verify {c.reference ?? "payment"}</button>}</dd></div>
         <div><dt>Payment reference</dt><dd>{c.reference ?? "—"}</dd></div>
         <div><dt>Trainer</dt><dd>{admin ? <select aria-label={`Trainer for ${c.name}`} value={c.trainerId ?? ""} disabled={pending} onChange={e => {const trainerId = e.target.value; run(() => assignTrainer(c.id, trainerId));}}><option value="">Unassigned</option>{trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select> : c.trainer}</dd></div>
+        <div><dt>Trains</dt><dd>{c.intake ? `${c.intake.place} · ${c.intake.days}` : "—"}</dd></div>
         <div><dt>Latest check-in</dt><dd>{c.checkinNote ? `“${c.checkinNote}”` : "—"}</dd></div>
         <div><dt>Check-in call link</dt><dd>{c.meetingUrl ? <a href={c.meetingUrl} target="_blank" rel="noopener noreferrer">{c.meetingUrl}</a> : "Not set by trainer"}</dd></div>
       </dl></section>
@@ -75,8 +75,7 @@ export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin
           <div><dt>Booked check-in</dt><dd>{state.booking ?? "Not booked"}</dd></div>
         </dl></section>
         <section className="card"><h2>Workout &amp; check-in</h2><dl className="rc-detail-list">
-          <div><dt>Saturday session</dt><dd>{state.workout.finished ? `Completed · felt ${state.workout.feedback.toLowerCase() || "—"}` : `${state.workout.done.length} of 5 exercises done`}</dd></div>
-          <div><dt>Exercises done</dt><dd>{state.workout.done.length ? state.workout.done.map(i => exerciseNames[i]).join(", ") : "None yet"}</dd></div>
+          <div><dt>Workouts done this week</dt><dd>{state.workout.completedDays.length ? state.workout.completedDays.sort().map(i => dayNames[i]).join(", ") : "None yet"}</dd></div>
           <div><dt>Weekly check-in</dt><dd>{state.checkin.submitted ? `Energy ${state.checkin.energy.toLowerCase()} · ${state.checkin.planFit.toLowerCase()}` : "Not submitted"}</dd></div>
           <div><dt>Meals logged</dt><dd>{state.nutrition.logged.length} · {state.nutrition.preference} plan</dd></div>
         </dl></section>
@@ -88,7 +87,12 @@ export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin
 
     <section className="card rc-detail-weight"><div className="section-top"><h2>This week’s schedule</h2><span className="pill">{plan ? `${plan.filter(Boolean).length} WORKOUTS` : "NOT SCHEDULED"}</span></div>
       {plan ? <dl className="rc-detail-list">{plan.map((w, i) => <div key={i}><dt>{dayNames[i]}</dt><dd>{w ? `${w.title}${w.time ? ` · ${formatTime(w.time)}` : ""}${w.durationMin ? ` · ${w.durationMin} min` : ""}${state?.workout.completedDays.includes(i) ? " · done ✓" : ""}${w.meetingUrl ? " · live link" : ""}` : "Rest"}</dd></div>)}</dl>
-        : <p className="small-note">The trainer hasn’t scheduled this week yet. The member sees the sample plan until they do.</p>}
+        : <p className="small-note">The trainer hasn’t scheduled this week yet. The member sees a “plan coming soon” message until they do.</p>}
+    </section>
+
+    <section className="card"><div className="section-top"><h2>Questions from {c.name.split(" ")[0]}</h2><span className="pill">{messages.length} MESSAGES</span></div>
+      {messages.length === 0 ? <p className="rc-staff-empty">No questions yet.</p>
+        : <ul className="rc-staff-activity">{messages.map((m, i) => <li key={i}><b>{m.author}</b><span>{m.body}</span><time dateTime={m.at.replace(" ", "T") + "Z"}>{m.at.slice(0, 16)} UTC</time></li>)}</ul>}
     </section>
 
     {pastWeeks.length > 0 && <section className="card"><div className="section-top"><h2>Past weeks</h2><span className="pill">{pastWeeks.length} WEEKS</span></div>

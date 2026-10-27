@@ -5,7 +5,7 @@ import {googleConfig} from "@/lib/google";
 export const metadata: Metadata = {title: "Log in — RepCount"};
 
 const googleErrors: Record<string, string> = {
-  google_no_account: "That Google account isn’t linked to RepCount yet. Ask the team to add your email first.",
+  google_no_account: "That Google account isn’t linked to RepCount yet. Create your account first, then sign in with Google using the same email.",
   google_cancelled: "Google sign-in was cancelled.",
   google_failed: "Google sign-in didn’t complete. Please try again.",
   google_unavailable: "Google sign-in isn’t set up yet. Use your email and password.",

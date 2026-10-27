@@ -4,26 +4,25 @@ import {useId, useState} from "react";
 import type {CSSProperties, ReactNode} from "react";
 import {Icon} from "./Media";
 import type {MemberState} from "@/lib/memberState";
+import type {DayLog} from "@/lib/store";
 import "./tracker.css";
 
 /* ------------------------------------------------------------------ */
-/* Sample history and targets. Today's entries are saved per member.   */
+/* Daily tracker. Today's entries save per member; past days come from */
+/* the member's archived history (lib/store.ts getMemberDays).          */
 /* ------------------------------------------------------------------ */
 
 export const palette = {red: "#e51937", ink: "#292d26", sage: "#7d8f6b", clay: "#d9a47f", lilac: "#9b8fb8", mist: "#c9cdbf"};
-const targetWeight = 72;
-const targetFat = 22;
 const stepGoal = 6000;
 const moods = ["Low", "Okay", "Good", "Great"] as const;
 type Mood = (typeof moods)[number];
 type Point = {label: string; value: number};
 
-const pastDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
-const pastSteps = [5200, 6100, 3900, 7400, 4800, 5600];
-const pastSleep = [6.5, 7, 6, 7.5, 7, 6.8];
-const pastWater = [5, 6, 4, 7, 5, 6];
-// 30-day journey: 0 = missed, 1-3 = how many daily check-ins were completed. Days 1-9 are sample history.
-const journeyHistory = [3, 2, 3, 0, 3, 2, 3, 1, 3];
+const dayMs = 86400000;
+const shiftDay = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * dayMs).toISOString().slice(0, 10);
+const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {weekday: "short", timeZone: "UTC"});
+/** 0 = nothing logged, 1-3 = how much of the daily tracker was filled in. */
+const level = (checks: boolean[]) => Math.min(3, Math.round((checks.filter(Boolean).length / 5) * 3));
 
 /** Points are labelled with the day they were logged (YYYY-MM-DD); logging again the same day replaces that day's entry. */
 function upsertDay(points: Point[], day: string, value: number): Point[] {
@@ -35,9 +34,13 @@ const chartLabel = (label: string) => /^\d{4}-\d{2}-\d{2}$/.test(label)
   : label;
 const forChart = (points: Point[]) => points.map(p => ({label: chartLabel(p.label), value: p.value}));
 
-export function useTracker(initial: MemberState["tracker"] | undefined, day: string) {
-  const [water, setWater] = useState(initial?.water ?? 3);
-  const [steps, setSteps] = useState(initial?.steps ?? 4280);
+/**
+ * Today's tracker plus the member's past days. `since` is the first day of their 30-day calendar
+ * (the day they joined, or 29 days ago, whichever is later).
+ */
+export function useTracker(initial: MemberState["tracker"] | undefined, day: string, history: DayLog[] = [], since: string = day) {
+  const [water, setWater] = useState(initial?.water ?? 0);
+  const [steps, setSteps] = useState(initial?.steps ?? 0);
   const [sleep, setSleep] = useState<number | null>(initial?.sleep ?? null);
   const [mood, setMood] = useState<Mood | null>((initial?.mood as Mood | null) ?? null);
   const [trained, setTrained] = useState(initial?.trained ?? false);
@@ -45,13 +48,24 @@ export function useTracker(initial: MemberState["tracker"] | undefined, day: str
   const [fats, setFats] = useState<Point[]>(initial?.fats ?? []);
   const checks = [water > 0, steps > 0, sleep !== null, mood !== null, trained];
   const done = checks.filter(Boolean).length;
-  const todayLevel = Math.min(3, Math.round((done / 5) * 3));
-  const journey = [...journeyHistory, todayLevel];
+  const byDay = new Map(history.map(h => [h.day, h]));
+  const pastLevels: number[] = [];
+  for (let d = since; d < day && pastLevels.length < 29; d = shiftDay(d, 1)) {
+    const h = byDay.get(d);
+    pastLevels.push(h ? level([h.water > 0, h.steps > 0, h.sleep !== null, h.mood !== null, h.trained]) : 0);
+  }
+  const journey = [...pastLevels, level(checks)];
+  // The last six days before today, for the habit charts (zero when nothing was logged).
+  const recent = Array.from({length: 6}, (_, i) => {
+    const d = shiftDay(day, i - 6);
+    const h = byDay.get(d);
+    return {label: weekday(d), steps: h?.steps ?? 0, sleep: h?.sleep ?? 0, water: h?.water ?? 0};
+  });
   let streak = 0;
   for (let i = journey.length - 1; i >= 0 && journey[i] > 0; i--) streak++;
   return {
     water, setWater, steps, setSteps, sleep, setSleep, mood, setMood, trained, setTrained,
-    weights, fats, done, checks, journey, streak,
+    weights, fats, done, checks, journey, streak, recent,
     logWeight: (value: number) => setWeights(previous => upsertDay(previous, day, value)),
     logFat: (value: number) => setFats(previous => upsertDay(previous, day, value)),
   };
@@ -194,7 +208,8 @@ export function DailyTracker({t, onProgress}: {t: Tracker; onProgress?: () => vo
 
 /* --------------------------- progress screen -------------------------- */
 
-export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finished: boolean; checkinNode: ReactNode}) {
+/** week: workouts completed and planned this week (from the trainer schedule) and the minutes they add up to. */
+export function ProgressDashboard({t, week, checkinNode}: {t: Tracker; week: {done: number; planned: number; minutes: number}; checkinNode: ReactNode}) {
   const [metric, setMetric] = useState<"Steps" | "Sleep" | "Water">("Steps");
   const [weightInput, setWeightInput] = useState("");
   const [fatInput, setFatInput] = useState("");
@@ -204,19 +219,12 @@ export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finis
   const startWeight = t.weights[0]?.value ?? null;
   const fat = t.fats.at(-1)?.value ?? null;
   const lost = current !== null && startWeight !== null ? startWeight - current : 0;
-  const pct = startWeight !== null && startWeight > targetWeight ? Math.max(0, Math.min(100, Math.round((lost / (startWeight - targetWeight)) * 100))) : 0;
-  const fatLeft = fat !== null ? Math.max(0, fat - targetFat) : 0;
-  const week: Bar[] = [
-    {label: "Mon", value: 20, planned: 20}, {label: "Tue", value: 0}, {label: "Wed", value: 25, planned: 25}, {label: "Thu", value: 0},
-    {label: "Fri", value: 20, planned: 20}, {label: "Sat", value: finished ? 25 : 0, planned: 25, highlight: true}, {label: "Sun", value: 0},
-  ];
-  const sessions = week.filter(b => b.value > 0).length;
-  const minutes = week.reduce((s, b) => s + b.value, 0);
+  const lastWeighIn = t.weights.at(-1)?.label;
   const habit = metric === "Steps"
-    ? {bars: [...pastDays.map((d, i) => ({label: d, value: pastSteps[i]})), {label: "Today", value: t.steps, highlight: true}], unit: "steps", format: (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n))}
+    ? {bars: [...t.recent.map(r => ({label: r.label, value: r.steps})), {label: "Today", value: t.steps, highlight: true}], unit: "steps", format: (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n))}
     : metric === "Sleep"
-      ? {bars: [...pastDays.map((d, i) => ({label: d, value: pastSleep[i]})), {label: "Today", value: t.sleep ?? 0, highlight: true}], unit: "hours", format: (n: number) => `${n}h`}
-      : {bars: [...pastDays.map((d, i) => ({label: d, value: pastWater[i]})), {label: "Today", value: t.water, highlight: true}], unit: "glasses", format: (n: number) => String(n)};
+      ? {bars: [...t.recent.map(r => ({label: r.label, value: r.sleep})), {label: "Today", value: t.sleep ?? 0, highlight: true}], unit: "hours", format: (n: number) => `${n}h`}
+      : {bars: [...t.recent.map(r => ({label: r.label, value: r.water})), {label: "Today", value: t.water, highlight: true}], unit: "glasses", format: (n: number) => String(n)};
   const habitColor = metric === "Steps" ? palette.sage : metric === "Sleep" ? palette.lilac : palette.clay;
   function submit(kind: "weight" | "fat") {
     const raw = kind === "weight" ? weightInput : fatInput;
@@ -229,33 +237,29 @@ export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finis
   return <div className="tk-progress">
     <div className="tk-kpis">
       <section className="card tk-kpi"><span className="eyebrow">CURRENT WEIGHT</span><strong>{current !== null ? current.toFixed(1) : "—"}<small>kg</small></strong><p>{current === null ? "Log your first weigh-in below." : t.weights.length < 2 ? "Your starting point." : lost > 0 ? `${lost.toFixed(1)} kg since your first weigh-in` : lost < 0 ? `${Math.abs(lost).toFixed(1)} kg above your first weigh-in` : "Same as your first weigh-in"}</p></section>
-      <section className="card tk-kpi"><span className="eyebrow">TARGET WEIGHT</span><strong>{targetWeight}<small>kg</small></strong><Meter value={pct} max={100} label="Progress towards target weight"/><p>{current === null ? "Starts with your first weigh-in" : `${pct}% of the way · ${Math.max(0, current - targetWeight).toFixed(1)} kg to go`}</p></section>
-      <section className="card tk-kpi"><span className="eyebrow">BODY FAT (ESTIMATE)</span><strong>{fat !== null ? fat.toFixed(1) : "—"}<small>%</small></strong><p>{fat === null ? "Log an estimate below." : `Target ${targetFat}% · ${fatLeft.toFixed(1)} points to go`}</p></section>
+      <section className="card tk-kpi"><span className="eyebrow">WEIGH-INS</span><strong>{t.weights.length}<small>logged</small></strong><p>{lastWeighIn ? `Last on ${chartLabel(lastWeighIn)}` : "Weigh in once a week, same time of day."}</p></section>
+      <section className="card tk-kpi"><span className="eyebrow">BODY FAT (ESTIMATE)</span><strong>{fat !== null ? fat.toFixed(1) : "—"}<small>%</small></strong><p>{fat === null ? "Log an estimate below." : "Your latest estimate."}</p></section>
       <section className="card tk-kpi"><span className="eyebrow">CONSISTENCY STREAK</span><strong>{t.streak}<small>{t.streak === 1 ? "day" : "days"}</small></strong><p>{t.done} of 5 check-ins today</p></section>
     </div>
 
     <div className="tk-grid-2">
       <Panel eyebrow="WEIGHT TREND" title="Steady beats fast.">
-        {t.weights.length > 0 ? <LineChart points={forChart(t.weights)} target={targetWeight} unit="kg" label="Weight trend" targetLabel={`Target ${targetWeight} kg`}/> : <p className="tk-caption">No weigh-ins yet. Your trend appears here once you log one.</p>}
+        {t.weights.length > 0 ? <LineChart points={forChart(t.weights)} unit="kg" label="Weight trend"/> : <p className="tk-caption">No weigh-ins yet. Your trend appears here once you log one.</p>}
         <form className="tk-log" onSubmit={e => { e.preventDefault(); submit("weight"); }}><label>Log today&rsquo;s weight (kg)<input inputMode="decimal" value={weightInput} onChange={e => setWeightInput(e.target.value)} placeholder="e.g. 77.4" maxLength={5}/></label><button className="button dark" type="submit">Save weigh-in</button></form>
       </Panel>
       <Panel eyebrow="BODY COMPOSITION" title="Body fat, in context.">
-        {t.fats.length > 0 ? <LineChart points={forChart(t.fats)} target={targetFat} unit="%" label="Body-fat estimate" color={palette.lilac} targetLabel={`Target ${targetFat}%`}/> : <p className="tk-caption">No estimates yet. Your trend appears here once you log one.</p>}
+        {t.fats.length > 0 ? <LineChart points={forChart(t.fats)} unit="%" label="Body-fat estimate" color={palette.lilac}/> : <p className="tk-caption">No estimates yet. Your trend appears here once you log one.</p>}
         <form className="tk-log" onSubmit={e => { e.preventDefault(); submit("fat"); }}><label>Log body-fat estimate (%)<input inputMode="decimal" value={fatInput} onChange={e => setFatInput(e.target.value)} placeholder="e.g. 26.4" maxLength={5}/></label><button className="button dark" type="submit">Save estimate</button></form>
       </Panel>
     </div>
     {message && <p className="tk-message" role="status">{message}</p>}
 
-    <div className="tk-grid-3">
-      <Panel eyebrow="THIS WEEK" title="Minutes moved.">
-        <BarChart bars={week} unit="minutes" label="Minutes of movement this week" format={n => `${n}m`}/>
-        <p className="tk-caption"><b>{sessions} of 4</b> sample sessions · <b>{minutes}</b> minutes. Ghost bars show the plan.</p>
-      </Panel>
-      <Panel eyebrow="TRAINING MIX" title="What you've been doing.">
-        <Donut label="Training mix this month" centerBig="7" centerSmall="activities" unit="" slices={[
-          {label: "Strength", value: 3, color: palette.red, note: "3 sessions"}, {label: "Mobility", value: 1, color: palette.sage, note: "1 session"},
-          {label: "Cardio", value: 1, color: palette.clay, note: "1 session"}, {label: "Easy walks", value: 2, color: palette.lilac, note: "2 walks"},
-        ]}/>
+    <div className="tk-grid-2">
+      <Panel eyebrow="THIS WEEK" title="Workouts done.">
+        {week.planned > 0 ? <>
+          <Meter value={week.done} max={week.planned} label="Planned workouts completed this week"/>
+          <p className="tk-caption"><b>{week.done} of {week.planned}</b> planned workouts · <b>{week.minutes}</b> minutes</p>
+        </> : <p className="tk-caption">Your trainer hasn’t scheduled this week yet. Your workouts appear here once they do.</p>}
       </Panel>
       <Panel eyebrow="DAILY HABITS" title="Small things, tracked.">
         <div className="tk-seg" role="group" aria-label="Habit to chart">{(["Steps", "Sleep", "Water"] as const).map(m => <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>{m}</button>)}</div>
@@ -274,31 +278,8 @@ export function ProgressDashboard({t, finished, checkinNode}: {t: Tracker; finis
     </Panel>
 
     {checkinNode}
-    <p className="tk-disclaimer">Earlier days are example history; today’s entries are yours and save automatically. Targets are agreed with your trainer. Body-fat figures from scales and calipers are estimates that vary by method. This is not a health score, diagnosis or medical advice.</p>
+    <p className="tk-disclaimer">Today’s entries save automatically; earlier days come from your own log. Body-fat figures from scales and calipers are estimates that vary by method. This is not a health score, diagnosis or medical advice.</p>
   </div>;
-}
-
-/* ------------------------------ plan screen --------------------------- */
-
-export function PlanWeek({finished}: {finished: boolean}) {
-  const bars: Bar[] = [
-    {label: "Mon", value: 20, planned: 20}, {label: "Tue", value: 0}, {label: "Wed", value: 25, planned: 25}, {label: "Thu", value: 0},
-    {label: "Fri", value: 20, planned: 20}, {label: "Sat", value: finished ? 25 : 0, planned: 25, highlight: true}, {label: "Sun", value: 0},
-  ];
-  const done = bars.reduce((s, b) => s + b.value, 0);
-  const planned = bars.reduce((s, b) => s + (b.planned ?? 0), 0);
-  return <section className="card tk-panel tk-wide">
-    <span className="eyebrow">YOUR WEEK AT A GLANCE</span><h2>Planned and done.</h2>
-    <div className="tk-plan-grid">
-      <BarChart bars={bars} unit="minutes" label="Planned and completed minutes this week" format={n => `${n}m`}/>
-      <div className="tk-plan-side">
-        <Meter value={done} max={planned} label="Share of planned minutes completed"/>
-        <p><b>{done}</b> of <b>{planned}</b> planned minutes</p>
-        <ul><li><i style={{background: palette.sage}}/>Completed sessions</li><li><i className="ghost"/>Still planned</li><li><i style={{background: palette.red}}/>Next session</li></ul>
-        <small>Sample plan. A qualified trainer approves every real plan.</small>
-      </div>
-    </div>
-  </section>;
 }
 
 /* --------------------------- nutrition charts ------------------------- */
@@ -307,53 +288,33 @@ export type Macros = {kcal: number; protein: number; carbs: number; fat: number}
 export function NutritionBalance({totals, meals, waterByDay}: {totals: Macros; meals: {name: string; kcal: number; logged: boolean}[]; waterByDay: {label: string; value: number}[]}) {
   const any = totals.kcal > 0;
   return <section className="card tk-panel tk-nutrition" aria-labelledby="tk-nut-title">
-    <span className="eyebrow">TODAY&rsquo;S BALANCE · SAMPLE VALUES</span><h2 id="tk-nut-title">What your logged meals add up to.</h2>
+    <span className="eyebrow">TODAY&rsquo;S BALANCE · ESTIMATES</span><h2 id="tk-nut-title">What your logged meals add up to.</h2>
     <div className="tk-grid-3 tk-inner">
       <div><h3>Macro split</h3>
         <Donut label="Macro split of logged meals" centerBig={any ? String(totals.kcal) : "–"} centerSmall={any ? "kcal logged" : "log a meal"} unit="g" slices={any ? [
           {label: "Protein", value: totals.protein, color: palette.red}, {label: "Carbs", value: totals.carbs, color: palette.sage}, {label: "Fat", value: totals.fat, color: palette.clay},
         ] : []}/></div>
       <div><h3>Energy by meal</h3>
-        <BarChart label="Sample energy per meal" unit="kcal" color={palette.sage} bars={meals.map(m => ({label: m.name, value: m.logged ? m.kcal : 0, planned: m.kcal, highlight: m.logged}))} format={n => String(n)}/></div>
-      <div><h3>Water, 3 sample days</h3>
-        <BarChart label="Glasses of water logged per sample day" unit="glasses" color={palette.lilac} bars={waterByDay} format={n => String(n)}/></div>
+        <BarChart label="Estimated energy per meal" unit="kcal" color={palette.sage} bars={meals.map(m => ({label: m.name, value: m.logged ? m.kcal : 0, planned: m.kcal, highlight: m.logged}))} format={n => String(n)}/></div>
+      <div><h3>Water this week</h3>
+        <BarChart label="Glasses of water logged per day" unit="glasses" color={palette.lilac} bars={waterByDay} format={n => String(n)}/></div>
     </div>
-    <p className="tk-note">Sample values for illustration only. No calorie or intake target is set and this is not an individual diet plan.</p>
+    <p className="tk-note">Estimated values for the suggested meals. No calorie or intake target is set and this is not an individual diet plan.</p>
   </section>;
-}
-
-/* --------------------------- trainer support -------------------------- */
-
-export function CoachPanel() {
-  const [focus, setFocus] = useState<boolean[]>([true, false, false]);
-  const [share, setShare] = useState({weight: true, fat: false, daily: true});
-  const items = ["Two strength sessions this week", "Walk after dinner on three days", "Bring one question to Friday’s check-in"];
-  return <div className="tk-coach">
-    <section className="card tk-panel">
-      <span className="eyebrow">THIS WEEK&rsquo;S FOCUS · FROM AKIF</span><h2>Three small things.</h2>
-      <ul className="tk-focus">{items.map((item, i) => <li key={item}><button aria-pressed={focus[i]} aria-label={`${focus[i] ? "Unmark" : "Mark done"}: ${item}`} onClick={() => setFocus(f => f.map((v, j) => (j === i ? !v : v)))}>{focus[i] ? "✓" : i + 1}</button><span className={focus[i] ? "done" : ""}>{item}</span></li>)}</ul>
-      <Meter value={focus.filter(Boolean).length} max={3} label="Focus items completed"/>
-      <blockquote>“Good start. Your consistency matters more than any single session. Let&rsquo;s keep Saturday light and talk about energy on Friday.”<cite>Sample trainer note · Akif</cite></blockquote>
-    </section>
-    <section className="card tk-panel">
-      <span className="eyebrow">YOU CHOOSE WHAT IS SHARED</span><h2>Your data, your call.</h2>
-      <ul className="tk-share">{([["weight", "Weight trend"], ["fat", "Body-fat estimates"], ["daily", "Daily tracker (steps, sleep, mood)"]] as const).map(([k, label]) => <li key={k}><span>{label}</span><button role="switch" aria-checked={share[k]} aria-label={`Share ${label} with trainer`} onClick={() => setShare(s => ({...s, [k]: !s[k]}))}><i/></button></li>)}</ul>
-      <p className="tk-note">Choose what your trainer can see. Sharing settings are a preview and don’t change anything yet.</p>
-    </section>
-  </div>;
 }
 
 /* ----------------------------- membership ----------------------------- */
 
-export function JourneyTimeline({weekly}: {weekly: number}) {
-  const day = 10;
-  const stops = [["Day 1", "Onboarding conversation", true], ["Day 3", "First personal plan", true], ["Day 8", "Trainer check-in 1", true], ["Day 15", "Trainer check-in 2", false], ["Day 22", "Trainer check-in 3", false], ["Day 30", "30-day reflection", false]] as const;
+/** The 30-day programme, counted from the day the member joined. Null start = not activated yet. */
+export function JourneyTimeline({start, today, weekly, target}: {start: {iso: string; label: string; end: string} | null; today: string; weekly: number; target: number}) {
+  const day = start ? Math.min(30, Math.max(1, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${start.iso}T00:00:00Z`)) / dayMs) + 1)) : 0;
+  const stops = [[1, "Onboarding conversation"], [3, "First personal plan"], [8, "Trainer check-in 1"], [15, "Trainer check-in 2"], [22, "Trainer check-in 3"], [30, "30-day reflection"]] as const;
   return <section className="card tk-panel tk-wide">
-    <span className="eyebrow">YOUR 30 DAYS · 15 OCT – 13 NOV</span><h2>Day {day} of 30.</h2>
+    <span className="eyebrow">{start ? `YOUR 30 DAYS · ${start.label.toUpperCase()} – ${start.end.toUpperCase()}` : "YOUR 30 DAYS"}</span><h2>{start ? `Day ${day} of 30.` : "Starts when you’re activated."}</h2>
     <Meter value={day} max={30} label="Days of the 30-day programme elapsed"/>
-    <ol className="tk-timeline">{stops.map(([d, t, done]) => <li key={d} className={done ? "done" : ""}><i/><b>{d}</b><span>{t}</span></li>)}</ol>
+    <ol className="tk-timeline">{stops.map(([d, t]) => <li key={d} className={day >= d ? "done" : ""}><i/><b>Day {d}</b><span>{t}</span></li>)}</ol>
     <div className="tk-use">
-      <div><strong>{weekly}/4</strong><span>sessions this week</span></div><div><strong>1/4</strong><span>trainer check-ins</span></div><div><strong>1</strong><span>onboarding session</span></div>
+      <div><strong>{weekly}/{target}</strong><span>workouts this week</span></div><div><strong>{Math.min(3, Math.floor(Math.max(0, day - 1) / 7))}/3</strong><span>trainer check-ins due so far</span></div><div><strong>{Math.max(0, 30 - day)}</strong><span>days to go</span></div>
     </div>
   </section>;
 }

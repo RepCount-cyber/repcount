@@ -1,0 +1,11 @@
+/* Create-account page: the auth shell and form styles come from login.css; this only adds the consent row. */
+.rc-register-form .rc-register-consent{flex-direction:row;align-items:flex-start;gap:10px}
+.rc-register-form .rc-register-consent input{width:18px;height:18px;flex:0 0 18px;margin:2px 0 0;padding:0;accent-color:#e51937}
+.rc-register-form .rc-register-consent span{font-weight:400;font-size:12px;line-height:1.45;color:#43483e}
+
+/* Seven fields are taller than sign-in: keep pairs side by side on phones, and if the screen is still too short,
+   scroll the panel from the top rather than centring (centring would push the tabs off-screen). */
+.rc-login:has(.rc-register-form) .rc-login-panel{overflow-y:auto;align-items:flex-start}
+.rc-login:has(.rc-register-form) .rc-login-card{margin-block:auto}
+@media(min-width:340px){.rc-register-form .rc-login-grid{grid-template-columns:1fr 1fr}.rc-register-form .rc-login-grid .rc-login-wide{grid-column:1/-1}}
+@media(max-height:760px) and (max-width:860px){.rc-login:has(.rc-register-form) .rc-login-lead{display:none}}
