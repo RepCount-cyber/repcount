@@ -98,6 +98,19 @@ const schema = `
     created_at timestamptz not null default now()
   );
   create index if not exists messages_client_idx on messages (client_id, id desc);
+  create table if not exists nutrition_plans (
+    client_id text primary key references clients(id) on delete cascade,
+    data jsonb not null,
+    updated_by text not null,
+    updated_at timestamptz not null default now()
+  );
+  create table if not exists session_confirmations (
+    client_id text not null references clients(id) on delete cascade,
+    day date not null,
+    trainer_id text not null,
+    created_at timestamptz not null default now(),
+    primary key (client_id, day)
+  );
   create table if not exists login_attempts (
     key text primary key,
     count integer not null,
@@ -151,6 +164,7 @@ async function seedDemo(tx: postgres.TransactionSql) {
     await tx`insert into clients (id, user_id, name, initials, stage, trainer_id, paid, progress, goal, last_workout_on, next_checkin, payment_reference, email, phone, joined_on)
       values (${id}, ${userId}, ${name}, ${initials}, ${stage}, ${trainerId}, ${paid}, ${progress}, ${goal}, ${lastWorkout}, ${nextCheckin}, ${reference}, ${email}, ${phone}, ${joined})`;
   }
+  await tx`update clients set intake = ${tx.json({place: "At home", days: "3 days a week"})} where user_id is not null`;
   // A few dated weigh-ins so the demo member's progress charts have a history.
   const weights = [78.4, 78.2, 78.1, 77.8, 77.7].map((value, i) => ({label: daysAgo(10 - i * 2), value}));
   const fats = [27.0, 26.9, 26.9, 26.7, 26.6].map((value, i) => ({label: daysAgo(10 - i * 2), value}));

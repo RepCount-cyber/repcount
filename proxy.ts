@@ -14,6 +14,8 @@ export async function proxy(request: NextRequest) {
     const url = new URL("/login", request.url);
     return NextResponse.redirect(url);
   }
+  // Members answer the onboarding questions at /onboarding, outside their area.
+  if (pathname === "/onboarding" && session.role === "member") return NextResponse.next();
   if (!pathname.startsWith(roleArea[session.role])) {
     return NextResponse.redirect(new URL(roleHome[session.role], request.url));
   }
@@ -21,5 +23,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/register", "/member/:path*", "/trainer/:path*", "/admin/:path*"],
+  matcher: ["/login", "/register", "/onboarding", "/member/:path*", "/trainer/:path*", "/admin/:path*"],
 };

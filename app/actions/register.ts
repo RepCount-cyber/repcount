@@ -3,21 +3,22 @@
 import {randomBytes} from "node:crypto";
 import {headers} from "next/headers";
 import {redirect} from "next/navigation";
-import {startSession} from "@/lib/dal";
+import {requireRole, startSession} from "@/lib/dal";
 import {goals, places, rhythms} from "@/lib/programme";
 import * as store from "@/lib/store";
 import {createUser, emailTaken, findUser, initialsOf, loginLimited, recordLoginFailure} from "@/lib/users";
 
 export type RegisterState = {error?: string; values?: Record<string, string>} | undefined;
+export type OnboardingState = {error?: string} | undefined;
 
 /*
- * Self-registration: creates the member's sign-in and client record, then signs them in.
- * They start in payment review; the team verifies payment and assigns a trainer.
+ * Self-registration: creates the member's sign-in and client record, signs them in and sends them to
+ * the onboarding questions. They start in payment review; the team verifies payment and assigns a trainer.
  * Limited to 5 new accounts per IP address in 15 minutes.
  */
 export async function register(_state: RegisterState, formData: FormData): Promise<RegisterState> {
   const field = (name: string) => String(formData.get(name) ?? "").trim();
-  const values = {name: field("name"), email: field("email").toLowerCase(), phone: field("phone"), goal: field("goal"), place: field("place"), days: field("days")};
+  const values = {name: field("name"), email: field("email").toLowerCase(), phone: field("phone")};
   const password = String(formData.get("password") ?? "");
   const fail = (error: string): RegisterState => ({error, values});
 
@@ -25,9 +26,6 @@ export async function register(_state: RegisterState, formData: FormData): Promi
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email) || values.email.length > 254) return fail("Enter a valid email address.");
   if (values.phone && !/^\+?[\d\s()-]{7,20}$/.test(values.phone)) return fail("Enter a phone number with digits only, or leave it blank.");
   if (password.length < 10 || password.length > 200) return fail("Choose a password of at least 10 characters.");
-  if (!(goals as readonly string[]).includes(values.goal)) return fail("Choose your main goal.");
-  if (!(places as readonly string[]).includes(values.place)) return fail("Choose where you’ll train.");
-  if (!(rhythms as readonly string[]).includes(values.days)) return fail("Choose how often you’d like to train.");
   if (formData.get("adult") !== "on") return fail("RepCount is for adults. Please confirm you’re 18 or over.");
 
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
@@ -40,10 +38,27 @@ export async function register(_state: RegisterState, formData: FormData): Promi
   const clientId = `c-${randomBytes(6).toString("hex")}`;
   await store.createClient({
     id: clientId, userId, name: values.name, initials: initialsOf(values.name, "RC"), email: values.email,
-    phone: values.phone || null, goal: values.goal, trainerId: null, intake: {place: values.place, days: values.days},
+    phone: values.phone || null, goal: "", trainerId: null,
   });
   await store.audit(userId, "self_register", `${values.name} · ${values.email}`, clientId);
   const user = await findUser(userId);
   if (user) await startSession(user);
-  redirect("/member/profile");
+  redirect("/onboarding");
+}
+
+/* The three onboarding answers: main goal, where they'll train and how often. Saved once, then the dashboard opens. */
+export async function completeOnboarding(_state: OnboardingState, formData: FormData): Promise<OnboardingState> {
+  const user = await requireRole("member");
+  const field = (name: string) => String(formData.get(name) ?? "").trim();
+  const [goal, place, days] = [field("goal"), field("place"), field("days")];
+  if (!(goals as readonly string[]).includes(goal)) return {error: "Choose your main goal."};
+  if (!(places as readonly string[]).includes(place)) return {error: "Choose where you’ll train."};
+  if (!(rhythms as readonly string[]).includes(days)) return {error: "Choose how often you’d like to train."};
+
+  const client = await store.clientByUser(user.id);
+  if (client && !client.intake) {
+    await store.saveIntake(client.id, goal, {place, days});
+    await store.audit(user.id, "complete_onboarding", `${goal} · ${place} · ${days}`, client.id);
+  }
+  redirect("/member/overview");
 }

@@ -6,7 +6,8 @@ import {requireRole} from "@/lib/dal";
 import {istToday} from "@/lib/dates";
 import * as store from "@/lib/store";
 import {createUser, emailTaken, initialsOf, listTrainers, setUserActive} from "@/lib/users";
-import {cleanMeetingUrl, sanitizeWeekPlan} from "@/lib/schedule";
+import {cleanMeetingUrl, planningWeeks, sanitizeWeekPlan} from "@/lib/schedule";
+import {sanitizeNutritionPlan} from "@/lib/nutritionPlan";
 
 type Result = {ok?: string; error?: string};
 const validEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
@@ -140,9 +141,7 @@ export async function setAccountActive(userId: string, active: boolean, subjectI
 
 /** Trainers may schedule this week or the next three for their own clients. */
 function allowedWeeks() {
-  const {weekStart} = istToday();
-  const monday = Date.parse(`${weekStart}T00:00:00Z`);
-  return [0, 1, 2, 3].map(i => new Date(monday + i * 7 * 86400000).toISOString().slice(0, 10));
+  return planningWeeks(istToday().weekStart).map(w => w.start);
 }
 
 export async function saveSchedule(clientId: string, weekStart: string, input: unknown): Promise<Result> {
@@ -171,4 +170,30 @@ export async function saveMeetingLink(clientId: string, url: string): Promise<Re
   revalidatePath("/trainer", "layout");
   revalidatePath("/member", "layout");
   return {ok: cleaned ? `Check-in call link saved — ${client.name} can now join from their app.` : `Check-in call link removed — ${client.name}`};
+}
+
+/** The trainer confirms (or un-confirms) that a client's session happened. Only this week's days up to today can be confirmed. */
+export async function confirmSession(clientId: string, day: string, done: boolean): Promise<Result> {
+  const user = await requireRole("trainer");
+  const client = await store.getClient(clientId);
+  if (!client || client.trainerId !== user.id) return {error: "That client isn’t assigned to you."};
+  const {day: today, weekStart} = istToday();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < weekStart || day > today) return {error: "Sessions can be confirmed for this week, up to today."};
+  await store.setSessionConfirmed(clientId, day, done, user.id);
+  await store.audit(user.id, done ? "confirm_session" : "unconfirm_session", `${client.name} · ${day}`, clientId);
+  revalidatePath("/trainer", "layout");
+  revalidatePath("/member", "layout");
+  return {ok: done ? `Session on ${day} marked completed — it counts towards ${client.name}’s streak.` : `Completion removed for ${day}.`};
+}
+
+export async function saveNutritionPlan(clientId: string, input: unknown): Promise<Result> {
+  const user = await requireRole("trainer");
+  const client = await store.getClient(clientId);
+  if (!client || client.trainerId !== user.id) return {error: "That client isn’t assigned to you."};
+  const plan = sanitizeNutritionPlan(input);
+  await store.saveNutritionPlan(clientId, plan, user.id);
+  await store.audit(user.id, "save_nutrition", `${client.name} · ${plan ? `${plan.meals.length} meal${plan.meals.length === 1 ? "" : "s"}` : "plan removed"}`, clientId);
+  revalidatePath("/trainer", "layout");
+  revalidatePath("/member", "layout");
+  return {ok: plan ? `Nutrition plan saved — ${client.name} sees it on their Nutrition page.` : `Nutrition plan removed for ${client.name}.`};
 }

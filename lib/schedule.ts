@@ -2,6 +2,16 @@
 export type PlannedWorkout = {title: string; exercises: string[]; time: string | null; durationMin: number | null; meetingUrl: string | null};
 export type WeekPlan = (PlannedWorkout | null)[]; // index 0 = Monday … 6 = Sunday; null = rest day
 
+/** The weeks a trainer can plan: this week and the next three, from the Monday weekStart (YYYY-MM-DD). */
+export function planningWeeks(weekStart: string) {
+  const monday = Date.parse(`${weekStart}T00:00:00Z`);
+  return [0, 1, 2, 3].map(i => {
+    const start = new Date(monday + i * 7 * 86400000);
+    const label = start.toLocaleDateString("en-GB", {day: "numeric", month: "short", timeZone: "UTC"});
+    return {start: start.toISOString().slice(0, 10), label: i === 0 ? `This week · from ${label}` : i === 1 ? `Next week · from ${label}` : `Week of ${label}`};
+  });
+}
+
 export const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export const templates: Record<string, {exercises: string[]; durationMin: number}> = {

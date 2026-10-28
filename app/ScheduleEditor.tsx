@@ -18,22 +18,18 @@ const toPlan = (days: DraftDay[]): WeekPlan => days.map(d => d.kind === "Rest da
   durationMin: d.duration ? Number(d.duration) : null, meetingUrl: d.meetingUrl.trim() || null,
 });
 
-/** Trainer tool: assign a week of workouts (with optional live-session links) to one of their clients. */
-export default function ScheduleEditor({clients, weeks, plans, pending, run}: {
-  clients: ClientRow[]; weeks: {start: string; label: string}[]; plans: Record<string, WeekPlan | null>;
+/** Trainer tool on a member's page: their weekly check-in call link and a week of workouts (with optional live-session links). */
+export default function ScheduleEditor({client, weeks, plans, pending, run}: {
+  client: ClientRow; weeks: {start: string; label: string}[]; plans: Record<string, WeekPlan | null>;
   pending: boolean; run: (action: () => Promise<Result>) => void;
 }) {
-  const [clientId, setClientId] = useState(clients[0]?.id ?? "");
   const [week, setWeek] = useState(weeks[0].start);
-  if (!clients.length) return <section className="card"><h2>Workout schedule</h2><p className="rc-staff-empty">No clients are assigned to you yet. The admin assigns clients from Clients &amp; payments.</p></section>;
-  const client = clients.find(c => c.id === clientId) ?? clients[0];
   return <>
     <section className="card rc-schedule-pick">
-      <label><span>Client</span><select value={client.id} onChange={e => setClientId(e.target.value)}>{clients.map(c => <option key={c.id} value={c.id}>{c.name} · {c.goal}</option>)}</select></label>
       <label><span>Week</span><select value={week} onChange={e => setWeek(e.target.value)}>{weeks.map(w => <option key={w.start} value={w.start}>{w.label}{plans[`${client.id}|${w.start}`] ? " · scheduled" : ""}</option>)}</select></label>
-      <MeetingLink key={client.id} client={client} pending={pending} run={run}/>
+      <MeetingLink client={client} pending={pending} run={run}/>
     </section>
-    <WeekEditor key={`${client.id}|${week}`} client={client} week={week} weeks={weeks} plans={plans} pending={pending} run={run}/>
+    <WeekEditor key={week} client={client} week={week} weeks={weeks} plans={plans} pending={pending} run={run}/>
   </>;
 }
 
@@ -51,6 +47,7 @@ function WeekEditor({client, week, weeks, plans, pending, run}: {
 }) {
   const saved = plans[`${client.id}|${week}`];
   const [days, setDays] = useState<DraftDay[]>(() => (saved ?? Array(7).fill(null)).map(toDraft));
+  const [allLink, setAllLink] = useState("");
   const weekIndex = weeks.findIndex(w => w.start === week);
   const previous = weekIndex > 0 ? plans[`${client.id}|${weeks[weekIndex - 1].start}`] : null;
   const update = (i: number, change: Partial<DraftDay>) => setDays(days.map((d, j) => j === i ? {...d, ...change} : d));
@@ -69,6 +66,10 @@ function WeekEditor({client, week, weeks, plans, pending, run}: {
       <button type="button" className="small-button" onClick={() => setDays(days.map((d, i) => [0, 2, 4].includes(i) ? toDraft({title: "Full-body foundations", exercises: templates["Full-body foundations"].exercises, time: d.time || "18:00", durationMin: 25, meetingUrl: d.meetingUrl || null}) : rest))}>Quick fill: Mon · Wed · Fri</button>
       <button type="button" className="small-button" onClick={() => setDays(Array(7).fill(rest))}>Clear week</button>
     </div>
+    <div className="rc-schedule-link rc-schedule-all">
+      <label><span>Same Google Meet link for every session</span><input type="url" inputMode="url" placeholder="https://meet.google.com/…" value={allLink} onChange={e => setAllLink(e.target.value)}/></label>
+      <button type="button" className="button outline" disabled={!allLink.trim()} onClick={() => setDays(days.map(d => d.kind === "Rest day" ? d : {...d, meetingUrl: allLink.trim()}))}><Icon name="video" size={16}/> Apply to all sessions</button>
+    </div>
     <form onSubmit={e => {e.preventDefault(); run(() => saveSchedule(client.id, week, toPlan(days)));}}>
       <ol className="rc-schedule-days">{days.map((d, i) => <li key={i} className={d.kind === "Rest day" ? "rest" : ""}>
         <div className="rc-schedule-day"><b>{dayNames[i]}</b><small>{dates[i]}</small></div>
@@ -77,7 +78,7 @@ function WeekEditor({client, week, weeks, plans, pending, run}: {
           <label><span>Title</span><input value={d.title} onChange={e => update(i, {title: e.target.value})} maxLength={60} required/></label>
           <label><span>Start time (IST)</span><input type="time" value={d.time} onChange={e => update(i, {time: e.target.value})}/></label>
           <label><span>Minutes</span><input type="number" min={5} max={240} step={5} value={d.duration} onChange={e => update(i, {duration: e.target.value})}/></label>
-          <label className="rc-schedule-wide"><span>Live session link (optional)</span><input type="url" inputMode="url" placeholder="https://zoom.us/j/…" value={d.meetingUrl} onChange={e => update(i, {meetingUrl: e.target.value})}/></label>
+          <label className="rc-schedule-wide"><span>Google Meet link (optional)</span><input type="url" inputMode="url" placeholder="https://meet.google.com/…" value={d.meetingUrl} onChange={e => update(i, {meetingUrl: e.target.value})}/></label>
           <label className="rc-schedule-wide"><span>Exercises · one per line</span><textarea rows={4} value={d.exercises} onChange={e => update(i, {exercises: e.target.value})}/></label>
         </>}
       </li>)}</ol>

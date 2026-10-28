@@ -90,3 +90,18 @@
 .rc-staff .rc-detail-stage{display:flex;flex-direction:column;gap:6px;min-width:190px}
 .rc-staff .rc-detail-stage select{min-height:42px;padding:0 12px;border:1px solid #d8dece;border-radius:8px;background:#fffdf8;font:inherit;font-size:14px;font-weight:600;color:#252822}
 @media(max-width:700px){.rc-staff .rc-detail-heading{flex-wrap:wrap;align-items:flex-start}.rc-staff .rc-detail-stage{width:100%;min-width:0}}
+/* Member page: sessions this week, Meet link for all sessions, nutrition plan editor */
+.rc-staff .rc-sessions{margin-bottom:22px}
+.rc-staff .rc-sessions li.rc-session-today{border-color:#d9b8bc;background:#fdf6f6}
+.rc-staff .rc-sessions .avatar{font-size:11px}
+.rc-staff .rc-sessions .rc-join{display:inline-flex;align-items:center;gap:6px}
+.rc-staff .rc-schedule-all{margin:0 0 16px}
+.rc-staff .rc-nutrition-editor .rc-staff-settings{margin-bottom:14px}
+.rc-staff .rc-meal-rows{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:10px}
+.rc-staff .rc-meal-rows>li{display:grid;grid-template-columns:160px 1fr auto;gap:12px;align-items:end;padding:14px;border:1px solid #e9e5dd;border-radius:12px;background:#fffdf8}
+.rc-staff .rc-meal-rows label,.rc-staff .rc-nutrition-notes{display:flex;flex-direction:column;gap:6px}
+.rc-staff .rc-meal-rows span,.rc-staff .rc-nutrition-notes span{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#868279}
+.rc-staff .rc-meal-rows input,.rc-staff .rc-meal-rows textarea,.rc-staff .rc-nutrition-notes textarea{padding:8px 11px;border:1px solid #d8dece;border-radius:8px;background:#fffdf8;font:inherit;font-size:14px;color:#252822;width:100%}
+.rc-staff .rc-meal-rows input{min-height:42px}
+.rc-staff .rc-nutrition-notes{margin:16px 0 8px}
+@media(max-width:700px){.rc-staff .rc-meal-rows>li{grid-template-columns:1fr}}

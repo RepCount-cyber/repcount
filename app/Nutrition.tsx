@@ -3,6 +3,7 @@
 import Photo from './Photo';
 import {useEffect,useRef,useState} from 'react';
 import type {NutritionState} from '@/lib/memberState';
+import type {NutritionPlan} from '@/lib/nutritionPlan';
 import {Icon} from './Media';
 import {NutritionBalance} from './Tracker';
 import './nutrition.css';
@@ -23,7 +24,8 @@ const meals:Record<Preference,Meal[]> = {
   ],
 };
 
-export default function Nutrition({initial,onChange}:{initial:NutritionState;onChange:(state:NutritionState)=>void}){
+/** The trainer's nutrition plan when they've written one; otherwise example meal rhythms the member can log against. */
+export default function Nutrition({initial,onChange,plan,todayIndex,coachName}:{initial:NutritionState;onChange:(state:NutritionState)=>void;plan:NutritionPlan|null;todayIndex:number;coachName:string}){
   const [preference,setPreference]=useState<Preference>(initial.preference as Preference);
   const [day,setDay]=useState(0);
   const [logged,setLogged]=useState<string[]>(initial.logged);
@@ -39,9 +41,23 @@ export default function Nutrition({initial,onChange}:{initial:NutritionState;onC
   const glasses=water[day]||0;
   const loggedMeals=dayMeals.filter((_,index)=>logged.includes(mealKey(index)));
   const totals=loggedMeals.reduce((sum,meal)=>({kcal:sum.kcal+meal.kcal,protein:sum.protein+meal.protein,carbs:sum.carbs+meal.carbs,fat:sum.fat+meal.fat}),{kcal:0,protein:0,carbs:0,fat:0});
-  function toggleMeal(index:number){
-    const key=mealKey(index);
-    setLogged(previous=>previous.includes(key)?previous.filter(item=>item!==key):[...previous,key]);
+  const toggleKey=(key:string)=>setLogged(previous=>previous.includes(key)?previous.filter(item=>item!==key):[...previous,key]);
+  const toggleMeal=(index:number)=>toggleKey(mealKey(index));
+  if(plan){
+    const planKey=(index:number)=>`plan-${todayIndex}-${index}`;
+    const eaten=plan.meals.filter((_,index)=>logged.includes(planKey(index))).length;
+    return <div className="member-nutrition">
+      <section className="card rc-trainer-nutrition">
+        <div className="section-top"><div><span className="eyebrow">FROM {coachName.toUpperCase()}</span><h2>Your nutrition plan.</h2></div>{plan.meals.length>0&&<span className="pill" aria-live="polite">{eaten} OF {plan.meals.length} LOGGED TODAY</span>}</div>
+        {(plan.calories||plan.protein)&&<div className="rc-nutrition-targets">{plan.calories&&<div><span className="eyebrow">DAILY CALORIES</span><strong>{plan.calories.toLocaleString('en-IN')}<small> kcal</small></strong></div>}{plan.protein&&<div><span className="eyebrow">DAILY PROTEIN</span><strong>{plan.protein}<small> g</small></strong></div>}</div>}
+        {plan.meals.length>0&&<ol className="rc-plan-meals">{plan.meals.map((meal,index)=>{
+          const isLogged=logged.includes(planKey(index));
+          return <li key={index} className={isLogged?'is-logged':undefined}><div><b>{meal.name}</b><p>{meal.detail}</p></div><button className={isLogged?'button outline':'button dark'} aria-pressed={isLogged} aria-label={`${isLogged?'Unmark':'Log'} ${meal.name.toLowerCase()}`} onClick={()=>toggleKey(planKey(index))}>{isLogged?'Eaten ✓':'Log meal'}</button></li>;
+        })}</ol>}
+        {plan.notes&&<div className="plan-note"><b>Notes from {coachName}</b><br/>{plan.notes}</div>}
+      </section>
+      <p className="member-nutrition-note">Your meal logs save to your account and your trainer can see them. Ask your trainer if anything in the plan doesn’t suit you.</p>
+    </div>;
   }
   return <div className="member-nutrition">
     <section className="member-nutrition-intro">

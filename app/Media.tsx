@@ -25,6 +25,7 @@ export function Icon({name, size=20}:{name:string; size?:number}) {
     move:<><path d="m4 9 5-5m6 16 5-5M2 7l5-5m10 20 5-5M6 6l12 12M9 3l3 3M12 18l3 3"/></>,
     heart:<path d="M20.5 4.8a5.1 5.1 0 0 0-7.2 0L12 6.1l-1.3-1.3a5.1 5.1 0 0 0-7.2 7.2L12 20.5l8.5-8.5a5.1 5.1 0 0 0 0-7.2Z"/>,
     chart:<><path d="M4 4v16h17M8 15l4-5 4 3 5-7"/></>,
+    trophy:<><path d="M8 4h8v5a4 4 0 0 1-8 0ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4v3h-4Z"/></>,
     leaf:<><path d="M19 3C7 2 2 10 8 16s14 1 11-13ZM5 21 15 9"/></>,
     chat:<><path d="M21 11a8.5 8.5 0 0 1-9 8l-7 3v-6a8 8 0 1 1 16-5Z"/><path d="M8 10h8M8 14h5"/></>,
     clock:<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,

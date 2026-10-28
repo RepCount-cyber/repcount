@@ -261,3 +261,40 @@
 .rc-member .profile-details dd{margin:0;color:#2f332b;overflow-wrap:anywhere}
 .rc-member .team-card .button+.button{margin-top:10px}
 @media(max-width:700px){.rc-member .profile-card{flex-direction:column;gap:14px}}
+/* Today: join the session, mark the day complete, see the streak */
+.rc-member .rc-today{display:flex;gap:24px;align-items:center;justify-content:space-between;margin-bottom:22px;border-color:#e7cfd1;background:linear-gradient(135deg,#fffdf8,#fbf1f1)}
+.rc-member .rc-today-main{flex:1;min-width:0}
+.rc-member .rc-today h2{font-family:Georgia,serif;font-weight:400;font-size:30px;letter-spacing:-.8px;margin:6px 0}
+.rc-member .rc-today-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.rc-member .rc-today-actions .rc-join{display:inline-flex;align-items:center;gap:8px}
+.rc-member .rc-today-streak{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:140px;padding:16px;border-radius:14px;background:#fffdf8;border:1px solid #eee3dc;text-align:center}
+.rc-member .rc-today-streak strong{font-family:Georgia,serif;font-weight:400;font-size:52px;line-height:1;color:#c3283a}
+.rc-member .rc-today-streak span{font-size:12px;color:#757b6e;letter-spacing:.4px;text-transform:uppercase}
+.rc-member .rc-today-streak .text-button{margin-top:8px;font-size:12px}
+/* Leaderboard */
+.rc-member .rc-rank-hero{display:flex;flex-wrap:wrap;gap:20px 40px;align-items:center;margin-bottom:22px}
+.rc-member .rc-rank-hero>div{display:flex;flex-direction:column;gap:4px}
+.rc-member .rc-rank-hero strong{font-family:Georgia,serif;font-weight:400;font-size:44px;line-height:1;color:#2f332b}
+.rc-member .rc-rank-hero strong small{font-family:'DM Sans',sans-serif;font-size:14px;color:#757b6e}
+.rc-member .rc-rank-hero .button{margin-left:auto}
+.rc-member .rc-leaderboard ol{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px}
+.rc-member .rc-leaderboard li{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid #e9e5dd;border-radius:12px}
+.rc-member .rc-leaderboard li.you{border-color:#d9b8bc;background:#fdf6f6}
+.rc-member .rc-leaderboard li>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.rc-member .rc-leaderboard li small{color:#7b7b72}
+.rc-member .rc-leaderboard li>strong{font-size:20px;white-space:nowrap}
+.rc-member .rc-leaderboard li>strong small{font-size:12px}
+.rc-member .rc-rank{width:30px;text-align:center;font-family:Georgia,serif;font-size:22px;color:#8a7c61}
+.rc-member .rc-leaderboard li:nth-child(-n+3) .rc-rank{color:#c3283a}
+/* Trainer's nutrition plan on the member's Nutrition page */
+.rc-member .rc-nutrition-targets{display:flex;flex-wrap:wrap;gap:16px 40px;margin:16px 0}
+.rc-member .rc-nutrition-targets>div{display:flex;flex-direction:column;gap:4px}
+.rc-member .rc-nutrition-targets strong{font-family:Georgia,serif;font-weight:400;font-size:36px;line-height:1}
+.rc-member .rc-nutrition-targets strong small{font-family:'DM Sans',sans-serif;font-size:14px;color:#757b6e}
+.rc-member .rc-plan-meals{list-style:none;margin:16px 0;padding:0;display:grid;gap:10px}
+.rc-member .rc-plan-meals li{display:flex;gap:16px;align-items:center;padding:14px 16px;border:1px solid #e9e5dd;border-radius:12px}
+.rc-member .rc-plan-meals li.is-logged{background:#f1f4ea;border-color:#d6dfc6}
+.rc-member .rc-plan-meals li>div{flex:1;min-width:0}
+.rc-member .rc-plan-meals p{margin:4px 0 0}
+.rc-member .rc-trainer-nutrition .plan-note{white-space:pre-line}
+@media(max-width:700px){.rc-member .rc-today{flex-direction:column;align-items:stretch}.rc-member .rc-today h2{font-size:26px}.rc-member .rc-today-streak{flex-direction:row;justify-content:center;gap:10px;min-width:0}.rc-member .rc-today-streak strong{font-size:36px}.rc-member .rc-today-streak .text-button{margin:0 0 0 auto}.rc-member .rc-rank-hero .button{margin-left:0;width:100%}.rc-member .rc-plan-meals li{flex-direction:column;align-items:stretch}}

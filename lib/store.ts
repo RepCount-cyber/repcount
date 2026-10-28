@@ -6,6 +6,8 @@ import {istToday} from "./dates";
 import {listTrainers, type Trainer} from "./users";
 import type {PlannedWorkout, WeekPlan} from "./schedule";
 import {currency} from "./programme";
+import {sanitizeNutritionPlan, type NutritionPlan} from "./nutritionPlan";
+import {scoreFor, shiftDay, streakFrom, type LeaderboardRow} from "./streak";
 
 export type ClientRow = {
   id: string; name: string; initials: string; stage: string; trainerId: string | null; trainer: string; paid: boolean; progress: number;
@@ -67,6 +69,11 @@ export async function createClient(input: {id: string; userId: string; name: str
   const sql = await db();
   await sql`insert into clients (id, user_id, name, initials, stage, trainer_id, goal, email, phone, joined_on, intake)
     values (${input.id}, ${input.userId}, ${input.name}, ${input.initials}, 'Payment review', ${input.trainerId}, ${input.goal}, ${input.email}, ${input.phone}, ${istToday().day}, ${input.intake ? sql.json(input.intake) : null})`;
+}
+
+export async function saveIntake(id: string, goal: string, intake: Intake) {
+  const sql = await db();
+  await sql`update clients set goal = ${goal}, intake = ${sql.json(intake)} where id = ${id}`;
 }
 
 export async function assignTrainer(id: string, trainerId: string | null) {
@@ -237,14 +244,9 @@ export async function saveMemberState(userId: string, input: unknown) {
     const [client] = await tx<{id: string}[]>`select id from clients where user_id = ${userId}`;
     if (!client) return;
     // Progress is completed ÷ planned workouts in the trainer's schedule; without a schedule there is nothing to measure.
-    const plan = await getWeekPlan(client.id, weekStart, tx);
-    const planned = plan ? plan.flatMap((w, i) => w ? [i] : []) : [];
-    const completed = state.workout.completedDays.filter(d => planned.includes(d));
-    const progress = planned.length ? Math.round((completed.length / planned.length) * 100) : 0;
-    const todayIndex = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
-    const trainedToday = plan ? completed.includes(todayIndex) : state.workout.finished || state.tracker.trained;
+    const {progress, trainedToday} = await weekProgress(tx, client.id, state.workout.completedDays, day, weekStart);
     await tx`update clients set progress = ${progress}, next_checkin = ${state.booking ?? "Not booked"},
-      last_workout_on = case when ${trainedToday} then ${day}::date else last_workout_on end where id = ${client.id}`;
+      last_workout_on = case when ${trainedToday || state.tracker.trained} then ${day}::date else last_workout_on end where id = ${client.id}`;
     const sameWeek = before?.weekStart === weekStart;
     const checkinChanged = state.checkin.submitted && (!sameWeek || !before?.checkin.submitted || before.checkin.energy !== state.checkin.energy || before.checkin.planFit !== state.checkin.planFit);
     if (checkinChanged) {
@@ -303,4 +305,94 @@ export async function saveWeekPlan(clientId: string, weekStart: string, plan: We
 export async function setMeetingUrl(clientId: string, url: string | null) {
   const sql = await db();
   await sql`update clients set meeting_url = ${url} where id = ${clientId}`;
+}
+
+/**
+ * This week's completion: planned workouts the member marked done or the trainer confirmed, as a share of all planned workouts.
+ * Without a schedule there is nothing to measure.
+ */
+async function weekProgress(tx: postgres.TransactionSql, clientId: string, memberDone: number[], day: string, weekStart: string) {
+  const plan = await getWeekPlan(clientId, weekStart, tx);
+  const planned = plan ? plan.flatMap((w, i) => w ? [i] : []) : [];
+  const confirmed = (await confirmedDays(clientId, weekStart, shiftDay(weekStart, 6), tx)).map(d => dayIndex(d));
+  const completed = planned.filter(i => memberDone.includes(i) || confirmed.includes(i));
+  return {progress: planned.length ? Math.round((completed.length / planned.length) * 100) : 0, trainedToday: completed.includes(dayIndex(day))};
+}
+
+/** 0 = Monday … 6 = Sunday */
+const dayIndex = (iso: string) => (new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7;
+
+/** Days (YYYY-MM-DD) between from and to on which the trainer confirmed the client's session. */
+export async function confirmedDays(clientId: string, from: string, to: string, tx?: postgres.TransactionSql): Promise<string[]> {
+  const sql = tx ?? await db();
+  const rows = await sql<{day: string}[]>`select day::text as day from session_confirmations where client_id = ${clientId} and day between ${from} and ${to} order by day`;
+  return rows.map(r => r.day);
+}
+
+/** Records (or removes) the trainer's confirmation that a session happened, then refreshes the client's weekly progress. */
+export async function setSessionConfirmed(clientId: string, day: string, done: boolean, trainerId: string) {
+  const sql = await db();
+  const {day: today, weekStart} = istToday();
+  await sql.begin(async tx => {
+    if (done) await tx`insert into session_confirmations (client_id, day, trainer_id) values (${clientId}, ${day}, ${trainerId}) on conflict (client_id, day) do nothing`;
+    else await tx`delete from session_confirmations where client_id = ${clientId} and day = ${day}`;
+    const [client] = await tx<{user_id: string | null}[]>`select user_id from clients where id = ${clientId}`;
+    const [row] = client?.user_id ? await tx<{data: unknown}[]>`select data from member_state where user_id = ${client.user_id}` : [];
+    const state = row ? rollOver(sanitizeMemberState(row.data, today, weekStart), today, weekStart) : null;
+    const {progress} = await weekProgress(tx, clientId, state?.workout.completedDays ?? [], today, weekStart);
+    await tx`update clients set progress = ${progress},
+      last_workout_on = case when ${done} and (last_workout_on is null or last_workout_on < ${day}::date) then ${day}::date else last_workout_on end where id = ${clientId}`;
+  });
+}
+
+export async function getNutritionPlan(clientId: string): Promise<NutritionPlan | null> {
+  const sql = await db();
+  const [row] = await sql<{data: unknown}[]>`select data from nutrition_plans where client_id = ${clientId}`;
+  return row ? sanitizeNutritionPlan(row.data) : null;
+}
+
+/** Saves the trainer's nutrition plan for a client; an empty plan removes it. */
+export async function saveNutritionPlan(clientId: string, plan: NutritionPlan | null, trainerId: string) {
+  const sql = await db();
+  if (!plan) { await sql`delete from nutrition_plans where client_id = ${clientId}`; return; }
+  await sql`insert into nutrition_plans (client_id, data, updated_by, updated_at) values (${clientId}, ${sql.json(plan as unknown as postgres.JSONValue)}, ${trainerId}, now())
+    on conflict (client_id) do update set data = excluded.data, updated_by = excluded.updated_by, updated_at = excluded.updated_at`;
+}
+
+/**
+ * Every active member ranked by points over the last 30 days, then by streak.
+ * A completed day is one the member marked complete (archived days and today's saved state) or one their trainer confirmed.
+ * Names are shortened to first name and last initial.
+ */
+export async function leaderboard(): Promise<LeaderboardRow[]> {
+  const sql = await db();
+  const {day: today} = istToday();
+  // Look back further than the scoring window so long streaks are counted in full.
+  const since = shiftDay(today, -365);
+  const members = await sql<{user_id: string; client_id: string; name: string; initials: string}[]>`
+    select u.id as user_id, c.id as client_id, u.name, u.initials from users u join clients c on c.user_id = u.id where u.role = 'member' and u.active`;
+  if (members.length === 0) return [];
+  const userIds = members.map(m => m.user_id);
+  const clientIds = members.map(m => m.client_id);
+  const [archived, current, confirmations] = await Promise.all([
+    sql<{user_id: string; day: string}[]>`select user_id, period_start::text as day from member_history
+      where period = 'day' and period_start >= ${since} and user_id in ${sql(userIds)} and data->>'trained' = 'true'`,
+    sql<{user_id: string; day: string}[]>`select user_id, data->>'day' as day from member_state where user_id in ${sql(userIds)} and data->'tracker'->>'trained' = 'true'`,
+    sql<{client_id: string; day: string}[]>`select client_id, day::text as day from session_confirmations where day >= ${since} and client_id in ${sql(clientIds)}`,
+  ]);
+  const doneBy = new Map<string, Set<string>>(members.map(m => [m.user_id, new Set()]));
+  const confirmedBy = new Map<string, Set<string>>(members.map(m => [m.client_id, new Set()]));
+  for (const r of [...archived, ...current]) if (r.day && r.day <= today) doneBy.get(r.user_id)?.add(r.day);
+  for (const r of confirmations) if (r.day <= today) confirmedBy.get(r.client_id)?.add(r.day);
+  const rows = members.map(m => {
+    const confirmed = confirmedBy.get(m.client_id)!;
+    const done = new Set([...doneBy.get(m.user_id)!, ...confirmed]);
+    const [first, ...rest] = m.name.trim().split(/\s+/);
+    const beforeToday = new Set([...done].filter(d => d < today));
+    return {userId: m.user_id, name: rest.length ? `${first} ${rest.at(-1)![0]}.` : first, initials: m.initials, score: scoreFor(done, confirmed, today), streak: streakFrom(done, today), rank: 0,
+      pastStreak: streakFrom(beforeToday, today), confirmedToday: confirmed.has(today)};
+  }).sort((a, b) => b.score - a.score || b.streak - a.streak || a.name.localeCompare(b.name));
+  // Equal points and streak share a rank (1, 2, 2, 4).
+  rows.forEach((r, i) => { r.rank = i > 0 && rows[i - 1].score === r.score && rows[i - 1].streak === r.streak ? rows[i - 1].rank : i + 1; });
+  return rows;
 }

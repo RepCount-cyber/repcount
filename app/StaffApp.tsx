@@ -10,8 +10,6 @@ import {BarChart, StaffInsights, palette} from "./Tracker";
 import {logout} from "./actions/auth";
 import {addClient, addTrainer, assignTrainer, reviewCheckin, saveSettings, setAccountActive, verifyPayment} from "./actions/data";
 import type {AuditEntry, ClientRow, Settings, TrainerStats} from "@/lib/store";
-import type {WeekPlan} from "@/lib/schedule";
-import ScheduleEditor from "./ScheduleEditor";
 import "./member-polish.css";
 import "./accessibility-polish.css";
 import "./staff.css";
@@ -20,20 +18,20 @@ export type StaffRole = "trainer" | "admin";
 export type StaffUser = {name: string; initials: string; email: string};
 
 const tabs: Record<StaffRole, [string, string, string, string][]> = {
-  trainer: [["today", "home", "Today", "Today"], ["schedule", "calendar", "Workout schedule", "Schedule"], ["clients", "move", "My clients", "Clients"], ["checkins", "chat", "Check-ins", "Check-ins"]],
+  trainer: [["today", "home", "Today", "Today"], ["clients", "move", "My members", "Members"], ["checkins", "chat", "Check-ins", "Check-ins"]],
   admin: [["overview", "chart", "Overview", "Overview"], ["clients", "move", "Clients & payments", "Clients"], ["trainers", "heart", "Trainers", "Trainers"], ["settings", "lock", "Programme settings", "Settings"]],
 };
 const headings: Record<string, [string, string]> = {
   today: ["Today’s floor.", "Who’s training, who needs a nudge, and what’s next."],
   clients: ["Your people.", "Progress, payments and trainer assignment in one view."],
+  members: ["Your members.", "Open a member to plan their week, add their Meet links and nutrition, and mark sessions completed."],
   checkins: ["Weekly check-ins.", "Review how each client’s week went and adjust their plan."],
-  schedule: ["Plan the week.", "Assign workouts day by day and add live-session links your clients can join."],
   overview: ["The whole gym, at a glance.", "Cohort health, payments and trainer coverage."],
   trainers: ["Your coaching team.", "Workload, results and capacity for every trainer."],
   settings: ["Programme settings.", "Pricing and cohort rules for the pilot."],
 };
 
-export const activityLabels: Record<string, string> = {assign_trainer: "Trainer assigned", verify_payment: "Payment verified", review_checkin: "Check-in reviewed", update_settings: "Settings updated", add_trainer: "Trainer added", schedule_week: "Week scheduled", set_meeting_link: "Call link updated", add_client: "Client added", set_stage: "Stage changed", deactivate_user: "Account deactivated", reactivate_user: "Account reactivated", self_register: "Registered online", ask_coach: "Question sent"};
+export const activityLabels: Record<string, string> = {assign_trainer: "Trainer assigned", verify_payment: "Payment verified", review_checkin: "Check-in reviewed", update_settings: "Settings updated", add_trainer: "Trainer added", schedule_week: "Week scheduled", confirm_session: "Session completed", unconfirm_session: "Session completion removed", save_nutrition: "Nutrition plan saved", set_meeting_link: "Call link updated", add_client: "Client added", set_stage: "Stage changed", deactivate_user: "Account deactivated", reactivate_user: "Account reactivated", self_register: "Registered online", ask_coach: "Question sent", complete_onboarding: "Onboarding answered"};
 const stageOrder = ["Payment review", "Onboarding", "Check-in due", "Active"];
 const sorters: Record<string, (a: ClientRow, b: ClientRow) => number> = {
   Name: (a, b) => a.name.localeCompare(b.name),
@@ -47,10 +45,9 @@ const emptyClient = {name: "", email: "", phone: "", goal: "", trainerId: "", pa
 type Props = {
   area: StaffRole; user: StaffUser; clients: ClientRow[]; settings: Settings; activity: AuditEntry[];
   trainers?: TrainerStats[]; initialTab?: string; detail?: ReactNode;
-  weeks?: {start: string; label: string}[]; plans?: Record<string, WeekPlan | null>;
 };
 
-export default function StaffApp({area: role, user, clients, settings, activity, trainers = [], initialTab, detail, weeks = [], plans = {}}: Props) {
+export default function StaffApp({area: role, user, clients, settings, activity, trainers = [], initialTab, detail}: Props) {
   const router = useRouter();
   const [tab, setTab] = useState(initialTab && tabs[role].some(([key]) => key === initialTab) ? initialTab : tabs[role][0][0]);
   const [filter, setFilter] = useState("All clients");
@@ -82,18 +79,18 @@ export default function StaffApp({area: role, user, clients, settings, activity,
     window.scrollTo({top: 0, behavior: "instant"});
     requestAnimationFrame(() => document.querySelector<HTMLElement>("main h1")?.focus({preventScroll: true}));
   };
-  const [title, subtitle] = headings[tab];
+  const [title, subtitle] = headings[role === "trainer" && tab === "clients" ? "members" : tab];
 
   const metrics: [string, string][] = role === "trainer"
     ? [[String(mine.length), "Clients assigned to you"], [String(mine.filter(c => c.lastWorkout === "Today").length), "Trained today"], [String(dueCheckIns.length), "Check-ins waiting"]]
     : [[String(clients.length), "Clients in cohort"], [String(clients.filter(c => !c.paid).length), "Payments awaiting review"], [String(clients.filter(c => c.trainer === "Unassigned").length), "Clients without a trainer"]];
 
   const roster = <section className="card">
-    <div className="section-top"><h2>{role === "trainer" ? "Assigned clients" : "Client roster"}</h2><span className="pill">{visible.length} SHOWN</span></div>
+    <div className="section-top"><h2>{role === "trainer" ? "Your assigned members" : "Client roster"}</h2><span className="pill">{visible.length} SHOWN</span></div>
     <div className="filters"><input aria-label="Search clients" placeholder="Search client name…" value={query} onChange={e => setQuery(e.target.value)}/><select aria-label="Filter clients by stage" value={filter} onChange={e => setFilter(e.target.value)}><option>All clients</option><option>Active</option><option>Onboarding</option><option>Check-in due</option>{role === "admin" && <option>Payment review</option>}</select>{role === "admin" && <><select aria-label="Filter clients by trainer" value={trainerFilter} onChange={e => setTrainerFilter(e.target.value)}><option>All trainers</option>{trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}<option>Unassigned</option></select><select aria-label="Sort clients" value={sort} onChange={e => setSort(e.target.value)}>{Object.keys(sorters).map(k => <option key={k} value={k}>Sort: {k}</option>)}</select></>}</div>
     <div className="table-scroll"><table className="rc-cards"><thead><tr><th>Client</th><th>Stage</th>{role === "admin" ? <th>Trainer</th> : <th>Goal</th>}<th>Weekly progress</th>{role === "admin" ? <th>Payment</th> : <th>Last workout</th>}</tr></thead><tbody>
       {visible.map(c => <tr key={c.id}>
-        <td data-label="Client"><span className="client-name"><span className="avatar">{c.initials}</span><Link className="rc-client-link" href={`/${role}/clients/${c.id}`}><b>{c.name}</b><small>View details →</small></Link></span></td>
+        <td data-label="Client"><span className="client-name"><span className="avatar">{c.initials}</span><Link className="rc-client-link" href={`/${role}/clients/${c.id}`}><b>{c.name}</b><small>{role === "trainer" ? "Plan workouts & nutrition →" : "View details →"}</small></Link></span></td>
         <td data-label="Stage"><span className="pill">{c.stage}</span></td>
         {role === "admin"
           ? <td data-label="Trainer"><select aria-label={`Trainer for ${c.name}`} value={c.trainerId ?? ""} disabled={pending} onChange={e => {const trainerId = e.target.value; run(() => assignTrainer(c.id, trainerId));}}><option value="">Unassigned</option>{trainers.filter(t => t.active || t.id === c.trainerId).map(t => <option key={t.id} value={t.id}>{t.name}{t.active ? "" : " (inactive)"}</option>)}</select></td>
@@ -162,7 +159,6 @@ export default function StaffApp({area: role, user, clients, settings, activity,
           </form>
         </section>}
         {tab === "checkins" && checkIns}
-        {tab === "schedule" && role === "trainer" && <ScheduleEditor clients={clients} weeks={weeks} plans={plans} pending={pending} run={run}/>}
         {tab === "trainers" && <>
           {trainerPerformance}
           <div className="two-grid equal">{trainers.map(t => <section className="card team-card rc-trainer-card" key={t.id}>

@@ -43,7 +43,7 @@
 @media(max-width:700px){.rc-member .member-nutrition-intro{grid-template-columns:minmax(0,1fr)}.rc-member .member-nutrition-intro>div{padding:26px}.rc-member .member-nutrition-intro figure{min-height:210px}.rc-member .member-nutrition-intro img{object-position:center 48%}.rc-member .member-nutrition-controls{flex-direction:column;gap:20px}.rc-member .member-nutrition-heading{align-items:flex-start;flex-direction:column;gap:12px}.rc-member .member-nutrition-heading h2{font-size:22px}.rc-member .member-meal-grid{grid-template-columns:minmax(0,1fr)}.rc-member .member-meal-card{padding:23px}.rc-member .member-meal-top{margin-bottom:20px}.rc-member .member-meal-card h3{font-size:28px}.rc-member .member-meal-card p{font-size:13px}.rc-member .member-water-card{flex-direction:column;align-items:flex-start;padding:24px;gap:24px}.rc-member .member-water-control{width:100%;justify-content:center}.rc-member .member-nutrition-note{font-size:10px}}
 
 @media(max-width:600px){
- .rc-member .sidebar nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px}
+ .rc-member .sidebar nav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}
  .rc-member .sidebar .nav{width:100%;min-width:0;min-height:56px;padding:7px 2px;gap:5px;font-size:9px}
  .rc-member .sidebar .nav-label{font-size:9px;letter-spacing:-.15px;line-height:1.15;white-space:nowrap}
  .rc-member .sidebar .nav>span:first-child{width:20px;height:20px}

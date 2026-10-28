@@ -8,16 +8,23 @@ import {activityLabels} from "./StaffApp";
 import {assignTrainer, setAccountActive, setClientStage, verifyPayment} from "./actions/data";
 import type {ClientDetail as Detail} from "@/lib/store";
 import {stages} from "@/lib/programme";
-import {dayNames, formatTime} from "@/lib/schedule";
+import {dayNames, formatTime, type WeekPlan} from "@/lib/schedule";
+import type {NutritionPlan} from "@/lib/nutritionPlan";
+import ScheduleEditor from "./ScheduleEditor";
+import {NutritionPlanEditor, SessionChecklist} from "./TrainerTools";
+
+/** What the assigned trainer can manage on a member's page: weekly workouts, nutrition and session completion. */
+export type Coaching = {weeks: {start: string; label: string}[]; plans: Record<string, WeekPlan | null>; nutrition: NutritionPlan | null; confirmed: string[]; today: string};
 
 const formatDate = (iso: string | null) => iso ? new Date(`${iso.length === 10 ? iso + "T00:00:00Z" : iso.replace(" ", "T") + "Z"}`).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"}) : "—";
 
 const shortDate = (label: string) => /^\d{4}-\d{2}-\d{2}$/.test(label) ? formatDate(label).replace(/ \d{4}$/, "") : label;
 
 /** One client: profile, membership, coaching, saved progress and history. Admins can also change payment, trainer, stage and access. */
-export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin" | "trainer"; detail: Detail; trainers: {id: string; name: string}[]}) {
+export default function ClientDetail({viewer, detail, trainers, coaching}: {viewer: "admin" | "trainer"; detail: Detail; trainers: {id: string; name: string}[]; coaching?: Coaching}) {
   const {client: c, state, history, lastSaved, plan, pastWeeks, messages} = detail;
   const admin = viewer === "admin";
+  const firstName = c.name.split(" ")[0];
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
   const [noticeError, setNoticeError] = useState(false);
@@ -31,7 +38,7 @@ export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin
   const weightChange = latestWeight !== undefined && weights[0] ? Math.round((latestWeight - weights[0].value) * 10) / 10 : null;
 
   return <>
-    <Link className="rc-back-link" href={`/${viewer}?tab=clients`}>← All clients</Link>
+    <Link className="rc-back-link" href={`/${viewer}?tab=clients`}>← {admin ? "All clients" : "All members"}</Link>
     <div className="page-heading rc-detail-heading">
       <div className="rc-detail-identity"><span className="large-avatar">{c.initials}</span><div><p className="eyebrow">CLIENT PROFILE</p><h1 tabIndex={-1}>{c.name}</h1><p>{c.goal} · joined {formatDate(c.joinedOn)}</p></div></div>
       {admin ? <label className="rc-detail-stage"><span className="eyebrow">Stage</span><select aria-label={`Stage for ${c.name}`} value={c.stage} disabled={pending} onChange={e => {const stage = e.target.value; run(() => setClientStage(c.id, stage));}}>{stages.map(s => <option key={s}>{s}</option>)}</select></label> : <span className="pill">{c.stage}</span>}
@@ -43,6 +50,16 @@ export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin
       <section className="card"><span className="eyebrow">Last workout</span><strong className="rc-detail-small">{c.lastWorkout}</strong></section>
       <section className="card"><span className="eyebrow">Next check-in</span><strong className="rc-detail-small">{c.nextCheckIn}</strong></section>
     </div>
+
+    {coaching && <>
+      <SessionChecklist clientId={c.id} firstName={firstName} plan={coaching.plans[`${c.id}|${coaching.weeks[0].start}`] ?? null} weekStart={coaching.weeks[0].start} today={coaching.today}
+        memberDone={state?.workout.completedDays ?? []} confirmed={coaching.confirmed} pending={pending} run={run}/>
+      <div className="section-heading"><h2>Workout plan</h2><span>WEEK BY WEEK</span></div>
+      <ScheduleEditor client={c} weeks={coaching.weeks} plans={coaching.plans} pending={pending} run={run}/>
+      <div className="section-heading"><h2>Nutrition</h2><span>SHOWN ON THEIR NUTRITION PAGE</span></div>
+      <NutritionPlanEditor clientId={c.id} firstName={firstName} plan={coaching.nutrition} pending={pending} run={run}/>
+      <div className="section-heading"><h2>Profile &amp; activity</h2></div>
+    </>}
 
     <div className="two-grid equal rc-detail-grid">
       <section className="card"><h2>Contact &amp; account</h2><dl className="rc-detail-list">
@@ -85,12 +102,12 @@ export default function ClientDetail({viewer, detail, trainers}: {viewer: "admin
       </section>
     </> : <section className="card"><h2>Member app activity</h2><p className="small-note">This client hasn’t been invited to the member app yet, so there are no tracker, workout or meal entries.</p></section>}
 
-    <section className="card rc-detail-weight"><div className="section-top"><h2>This week’s schedule</h2><span className="pill">{plan ? `${plan.filter(Boolean).length} WORKOUTS` : "NOT SCHEDULED"}</span></div>
+    {!coaching && <section className="card rc-detail-weight"><div className="section-top"><h2>This week’s schedule</h2><span className="pill">{plan ? `${plan.filter(Boolean).length} WORKOUTS` : "NOT SCHEDULED"}</span></div>
       {plan ? <dl className="rc-detail-list">{plan.map((w, i) => <div key={i}><dt>{dayNames[i]}</dt><dd>{w ? `${w.title}${w.time ? ` · ${formatTime(w.time)}` : ""}${w.durationMin ? ` · ${w.durationMin} min` : ""}${state?.workout.completedDays.includes(i) ? " · done ✓" : ""}${w.meetingUrl ? " · live link" : ""}` : "Rest"}</dd></div>)}</dl>
         : <p className="small-note">The trainer hasn’t scheduled this week yet. The member sees a “plan coming soon” message until they do.</p>}
-    </section>
+    </section>}
 
-    <section className="card"><div className="section-top"><h2>Questions from {c.name.split(" ")[0]}</h2><span className="pill">{messages.length} MESSAGES</span></div>
+    <section className="card"><div className="section-top"><h2>Questions from {firstName}</h2><span className="pill">{messages.length} MESSAGES</span></div>
       {messages.length === 0 ? <p className="rc-staff-empty">No questions yet.</p>
         : <ul className="rc-staff-activity">{messages.map((m, i) => <li key={i}><b>{m.author}</b><span>{m.body}</span><time dateTime={m.at.replace(" ", "T") + "Z"}>{m.at.slice(0, 16)} UTC</time></li>)}</ul>}
     </section>

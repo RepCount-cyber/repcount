@@ -4,12 +4,13 @@ import {Icon} from "./Media";
 import {formatTime, type WeekPlan} from "@/lib/schedule";
 
 /** The member's week as scheduled by their trainer: pick a day, follow the exercises, join the live session, mark it done. */
-export default function AssignedPlan({schedule, labels, day, setDay, doneDays, toggleDone, todayIndex, coachName}: {
+export default function AssignedPlan({schedule, labels, day, setDay, doneDays, toggleDone, confirmedDays, todayIndex, coachName}: {
   schedule: WeekPlan; labels: string[]; day: number; setDay: (day: number) => void;
-  doneDays: number[]; toggleDone: (day: number) => void; todayIndex: number; coachName: string;
+  doneDays: number[]; toggleDone: (day: number) => void; confirmedDays: number[]; todayIndex: number; coachName: string;
 }) {
   const workout = schedule[day];
   const done = doneDays.includes(day);
+  const confirmed = confirmedDays.includes(day);
   const time = formatTime(workout?.time ?? null);
   return <>
     <div className="day-strip" role="group" aria-label="Choose a day">{labels.map((label, i) => <button key={label} className={day === i ? "selected" : ""} aria-pressed={day === i} onClick={() => setDay(i)}>
@@ -23,7 +24,8 @@ export default function AssignedPlan({schedule, labels, day, setDay, doneDays, t
         {workout && <>
           {workout.meetingUrl && <a className="button dark rc-join" href={workout.meetingUrl} target="_blank" rel="noopener noreferrer"><Icon name="video" size={18}/> Join live session{time ? ` · ${time}` : ""}</a>}
           {workout.exercises.length > 0 && <ol className="rc-assigned-list">{workout.exercises.map((e, i) => <li key={i}><span>{i + 1}</span>{e}</li>)}</ol>}
-          <button className={done ? "button outline" : "button dark"} onClick={() => toggleDone(day)} aria-pressed={done}>{done ? "Done ✓ · tap to undo" : "Mark workout done"}</button>
+          {confirmed ? <span className="pill">COMPLETED · CONFIRMED BY {coachName.toUpperCase()} ✓</span>
+            : <button className={done ? "button outline" : "button dark"} onClick={() => toggleDone(day)} aria-pressed={done}>{done ? "Done ✓ · tap to undo" : "Mark workout done"}</button>}
         </>}
       </section>
       <aside className="card rc-assigned-week">

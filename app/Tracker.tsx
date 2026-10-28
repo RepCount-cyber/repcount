@@ -38,7 +38,7 @@ const forChart = (points: Point[]) => points.map(p => ({label: chartLabel(p.labe
  * Today's tracker plus the member's past days. `since` is the first day of their 30-day calendar
  * (the day they joined, or 29 days ago, whichever is later).
  */
-export function useTracker(initial: MemberState["tracker"] | undefined, day: string, history: DayLog[] = [], since: string = day) {
+export function useTracker(initial: MemberState["tracker"] | undefined, day: string, history: DayLog[] = [], since: string = day, past: {streak: number; confirmedToday: boolean} = {streak: 0, confirmedToday: false}) {
   const [water, setWater] = useState(initial?.water ?? 0);
   const [steps, setSteps] = useState(initial?.steps ?? 0);
   const [sleep, setSleep] = useState<number | null>(initial?.sleep ?? null);
@@ -61,8 +61,8 @@ export function useTracker(initial: MemberState["tracker"] | undefined, day: str
     const h = byDay.get(d);
     return {label: weekday(d), steps: h?.steps ?? 0, sleep: h?.sleep ?? 0, water: h?.water ?? 0};
   });
-  let streak = 0;
-  for (let i = journey.length - 1; i >= 0 && journey[i] > 0; i--) streak++;
+  // Consecutive completed days (counted on the server up to yesterday), plus today once it's marked complete or the trainer confirmed it.
+  const streak = past.streak + (trained || past.confirmedToday ? 1 : 0);
   return {
     water, setWater, steps, setSteps, sleep, setSleep, mood, setMood, trained, setTrained,
     weights, fats, done, checks, journey, streak, recent,
@@ -196,9 +196,9 @@ export function DailyTracker({t, onProgress}: {t: Tracker; onProgress?: () => vo
         <small>{t.mood === null ? "Tap to log" : `Feeling ${t.mood.toLowerCase()}`}</small>
       </div>
       <div className="tk-tile">
-        <span className="tk-tile-label"><Icon name="check" size={16}/> Today&rsquo;s movement</span>
-        <button className={t.trained ? "tk-toggle on" : "tk-toggle"} aria-pressed={t.trained} onClick={() => t.setTrained(!t.trained)}>{t.trained ? "Session or walk done ✓" : "Mark movement done"}</button>
-        <small>Any movement counts: training, walk or stretch.</small>
+        <span className="tk-tile-label"><Icon name="check" size={16}/> Today complete?</span>
+        <button className={t.trained ? "tk-toggle on" : "tk-toggle"} aria-pressed={t.trained} onClick={() => t.setTrained(!t.trained)}>{t.trained ? "Today complete ✓" : "Mark today complete"}</button>
+        <small>Completed days build your streak and leaderboard score.</small>
       </div>
     </div>
     {onProgress && <button className="text-button" onClick={onProgress}>See all progress charts <span><Icon name="arrow" size={16}/></span></button>}

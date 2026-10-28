@@ -20,9 +20,9 @@ const googleMark=<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="tr
 
 /**
  * Auth shell shared by /login and /register: photo panel + centred card, sized to the viewport so the
- * page never scrolls. Pass the card content as children; `active` highlights the matching tab.
+ * page never scrolls. Pass the card content as children; `active` highlights the matching tab (no tabs without it).
  */
-export function AuthShell({active,children}:{active:'login'|'register';children:React.ReactNode}) {
+export function AuthShell({active,children}:{active?:'login'|'register';children:React.ReactNode}) {
   return <div className="rc-login">
     <a className="skip" href="#auth-heading">Skip to form</a>
     <aside className="rc-login-story" aria-label="Personal coaching at home">
@@ -38,10 +38,10 @@ export function AuthShell({active,children}:{active:'login'|'register';children:
     <main className="rc-login-panel">
       <div className="rc-login-card">
         <Link className="rc-login-mobile-brand" href="/" aria-label="RepCount home"><Brand/></Link>
-        <nav className="rc-login-tabs" aria-label="Account">
+        {active&&<nav className="rc-login-tabs" aria-label="Account">
           <Link href="/login" aria-current={active==='login'?'page':undefined}>Sign in</Link>
           <Link href="/register" aria-current={active==='register'?'page':undefined}>Create account</Link>
-        </nav>
+        </nav>}
         {children}
       </div>
     </main>

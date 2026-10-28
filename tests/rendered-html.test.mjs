@@ -202,8 +202,17 @@ test('a trainer’s schedule and meeting link reach the member’s plan', async 
  assert.match(readableText(plan), /Goblet squat · 3 × 10/);
  assert.match(plan, /href="https:\/\/meet\.google\.com\/abc-defg-hij"/);
  assert.match(await (await visit('/member/profile', member)).text(), /href="https:\/\/zoom\.us\/j\/123456"/);
- const trainer = readableText(await (await visit('/trainer?tab=schedule', await sessionCookie('u-trainer-akif', 'trainer'))).text());
- assert.match(trainer, /Plan the week/);
+ const trainer = readableText(await (await visit('/trainer/clients/c-aarav', await sessionCookie('u-trainer-akif', 'trainer'))).text());
+ assert.match(trainer, /Sessions this week/);
+ assert.match(trainer, /Workout plan/);
+ assert.match(trainer, /nutrition plan/i);
+});
+
+test('members see their rank, score and streak on the leaderboard', async () => {
+ const member = await sessionCookie('u-member-aarav', 'member');
+ const text = readableText(await (await visit('/member/leaderboard', member)).text());
+ assert.match(text, /YOUR RANK/);
+ assert.match(text, /Aarav S\. · you/);
 });
 
 test('trainers open only their own clients’ detail pages', async () => {
@@ -237,8 +246,8 @@ test('responses carry security headers', async () => {
 });
 
 // Submits a server-action form the way a browser without JavaScript would.
-async function submitForm(path, fields, ip = '10.20.30.40') {
- const html = await (await fetch(baseUrl + path)).text();
+async function submitForm(path, fields, ip = '10.20.30.40', cookie) {
+ const html = await (await fetch(baseUrl + path, {headers: cookie ? {cookie} : {}})).text();
  const form = html.match(/<form[^>]*>[\s\S]*?<\/form>/)[0];
  const body = new FormData();
  for (const m of form.matchAll(/<input[^>]*type="hidden"[^>]*>/g)) {
@@ -246,24 +255,34 @@ async function submitForm(path, fields, ip = '10.20.30.40') {
   if (name) body.append(name, (m[0].match(/value="([^"]*)"/)?.[1] ?? '').replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
  }
  for (const [k, v] of Object.entries(fields)) body.append(k, v);
- return fetch(baseUrl + path, {method: 'POST', body, redirect: 'manual', headers: {origin: baseUrl, 'x-forwarded-for': ip}});
+ return fetch(baseUrl + path, {method: 'POST', body, redirect: 'manual', headers: {origin: baseUrl, 'x-forwarded-for': ip, ...(cookie ? {cookie} : {})}});
 }
 
-test('visitors register, land on their profile page, and staff see their answers', async () => {
+test('visitors register, answer the onboarding questions, and staff see their answers', async () => {
  const page = await visit('/register');
  assert.equal(page.status, 200);
  const html = await page.text();
- for (const name of ['name', 'email', 'password', 'goal', 'place', 'days', 'adult']) assert.match(html, new RegExp(`name="${name}"`), name);
- const fields = {name: 'Lina Haddad', email: 'lina@example.com', phone: '+971 50 000 0000', password: 'LinaPass#2026', goal: 'Improve mobility', place: 'At a gym', days: '2 days a week'};
+ for (const name of ['name', 'email', 'password', 'adult']) assert.match(html, new RegExp(`name="${name}"`), name);
+ const fields = {name: 'Lina Haddad', email: 'lina@example.com', phone: '+971 50 000 0000', password: 'LinaPass#2026'};
  const refused = await submitForm('/register', fields);
  assert.equal(refused.headers.get('set-cookie')?.includes('rc_session='), undefined, 'The adult confirmation is required');
  const created = await submitForm('/register', {...fields, adult: 'on'});
- assert.match(created.headers.get('set-cookie') ?? '', /rc_session=/);
- assert.match(created.headers.get('location') ?? created.headers.get('x-action-redirect') ?? '', /\/member\/profile/);
+ const cookie = (created.headers.get('set-cookie') ?? '').match(/rc_session=[^;]+/)?.[0];
+ assert.ok(cookie, 'Registration signs the member in');
+ assert.match(created.headers.get('location') ?? created.headers.get('x-action-redirect') ?? '', /\/onboarding/);
+ // Until the questions are answered the dashboard sends them back to onboarding.
+ assert.match((await visit('/member/overview', cookie)).headers.get('location') ?? '', /\/onboarding$/);
+ const onboarding = await visit('/onboarding', cookie);
+ assert.equal(onboarding.status, 200);
+ assert.doesNotMatch(await onboarding.text(), /<dialog\b/i, 'Onboarding is a page, not a modal');
+ const answered = await submitForm('/onboarding', {goal: 'Improve mobility', place: 'At a gym', days: '2 days a week'}, undefined, cookie);
+ assert.match(answered.headers.get('location') ?? answered.headers.get('x-action-redirect') ?? '', /\/member\/overview/);
  const [client] = await sql`select c.id, c.stage, c.goal, c.intake, u.role from clients c join users u on u.id = c.user_id where c.email = 'lina@example.com'`;
  assert.equal(client.role, 'member');
  assert.equal(client.stage, 'Payment review');
+ assert.equal(client.goal, 'Improve mobility');
  assert.deepEqual(client.intake, {place: 'At a gym', days: '2 days a week'});
+ assert.match((await visit('/onboarding', cookie)).headers.get('location') ?? '', /\/member\/overview$/, 'Onboarding is asked once');
  const detail = readableText(await (await visit(`/admin/clients/${client.id}`, await sessionCookie('u-admin', 'admin'))).text());
  assert.match(detail, /At a gym · 2 days a week/);
  const again = await submitForm('/register', {...fields, adult: 'on'}, '10.20.30.41');
@@ -276,7 +295,7 @@ test('members without a schedule see no invented workouts', async () => {
  const member = await sessionCookie('u-member-kabir', 'member', SESSION_SECRET, v);
  const plan = readableText(await (await visit('/member/plan', member)).text());
  assert.match(plan, /Your plan is on its way/);
- for (const path of ['/member/overview', '/member/plan', '/member/progress', '/member/profile', '/member/nutrition']) {
+ for (const path of ['/member/overview', '/member/plan', '/member/progress', '/member/leaderboard', '/member/profile', '/member/nutrition']) {
   // Email addresses are ignored: the seeded test accounts live on repcount.demo.
   const text = readableText(await (await visit(path, member)).text()).replace(/\S+@\S+/g, '');
   assert.doesNotMatch(text, /\b(?:demo|sample|preview|illustrative)\b/i, path);
