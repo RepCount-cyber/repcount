@@ -105,3 +105,41 @@
 .rc-staff .rc-meal-rows input{min-height:42px}
 .rc-staff .rc-nutrition-notes{margin:16px 0 8px}
 @media(max-width:700px){.rc-staff .rc-meal-rows>li{grid-template-columns:1fr}}
+
+/* Trainer member page: one tab per section (overview, workouts, nutrition, progress), each its own URL. */
+.rc-staff .rc-member-tabs{display:flex;gap:4px;margin:4px 0 24px;padding:4px;border-radius:12px;background:#efebe3;overflow-x:auto;scrollbar-width:none}
+.rc-staff .rc-member-tabs a{flex:0 0 auto;display:flex;align-items:center;min-height:40px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:600;color:#5d6056;text-decoration:none;white-space:nowrap}
+.rc-staff .rc-member-tabs a[aria-current="page"]{background:#fffdf8;color:#252822;box-shadow:0 1px 4px #2528221a}
+.rc-staff .rc-member-tabs a:not([aria-current="page"]):hover{color:#c71331}
+.rc-staff .rc-plan-summary{display:flex;flex-direction:column}
+.rc-staff .rc-plan-summary .button{margin-top:auto;text-decoration:none}
+@media(max-width:700px){.rc-staff .rc-member-tabs a{padding:0 12px;font-size:12px}}
+
+/* Workout plan: week tabs, seven day cards, and a single-day editor page. */
+.rc-staff .rc-week-tabs{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:20px;overflow-x:auto}
+.rc-staff .rc-week-tabs a{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:1px solid #e3ded3;border-radius:12px;background:#fffdf8;text-decoration:none;color:#252822}
+.rc-staff .rc-week-tabs a b{font-size:13px}
+.rc-staff .rc-week-tabs a small{font-size:11px;color:#868279}
+.rc-staff .rc-week-tabs a[aria-current="page"]{border-color:#e51937;box-shadow:inset 0 0 0 1px #e51937}
+.rc-staff .rc-week-tabs a:not([aria-current="page"]):hover{border-color:#a5a796}
+.rc-staff .rc-week-days{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.rc-staff .rc-week-days a{position:relative;display:flex;flex-direction:column;gap:6px;height:100%;min-height:150px;padding:14px 14px 40px;border:1px solid #e3ded3;border-radius:12px;background:#fffdf8;color:#252822;text-decoration:none;transition:border-color .15s,box-shadow .15s}
+.rc-staff .rc-week-days a:hover{border-color:#a5a796;box-shadow:0 4px 14px #2528220f}
+.rc-staff .rc-week-days a.rest{background:#f6f3ec}
+.rc-staff .rc-week-days a.rest strong{color:#868279;font-weight:500}
+.rc-staff .rc-week-day-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+.rc-staff .rc-week-day-top b{font-size:13px}
+.rc-staff .rc-week-days small{font-size:11px;color:#868279;line-height:1.45}
+.rc-staff .rc-week-days strong{font-size:15px;line-height:1.3}
+.rc-staff .rc-week-live{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#4f5d3d}
+.rc-staff .rc-week-edit{position:absolute;left:14px;bottom:12px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#c71331}
+.rc-staff .rc-day-editor{max-width:680px}
+.rc-staff .rc-day-editor form{display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.rc-staff .rc-day-editor label{display:flex;flex-direction:column;gap:6px}
+.rc-staff .rc-day-editor label>span{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#868279}
+.rc-staff .rc-day-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rc-staff .rc-day-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.rc-staff .rc-day-actions>span{display:flex;gap:8px}
+.rc-staff .rc-day-actions .small-button{display:inline-flex;align-items:center;text-decoration:none;color:#43483e}
+@media(max-width:700px){.rc-staff .rc-week-tabs{grid-template-columns:repeat(4,150px)}.rc-staff .rc-week-days{grid-template-columns:1fr 1fr}.rc-staff .rc-day-pair{grid-template-columns:1fr}}
+@media(max-width:420px){.rc-staff .rc-week-days{grid-template-columns:1fr}}

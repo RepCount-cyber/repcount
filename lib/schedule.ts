@@ -13,6 +13,8 @@ export function planningWeeks(weekStart: string) {
 }
 
 export const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+/** URL segment for each day, e.g. /trainer/clients/<id>/workouts/<week>/monday */
+export const daySlugs = dayNames.map(d => d.toLowerCase());
 
 export const templates: Record<string, {exercises: string[]; durationMin: number}> = {
   "Full-body foundations": {durationMin: 25, exercises: ["Easy warm-up · 5 min", "Chair squat · 2 × 8", "Wall push-up · 2 × 8", "Standing calf raise · 2 × 10", "Gentle cool-down · 5 min"]},

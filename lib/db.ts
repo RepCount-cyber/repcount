@@ -8,7 +8,7 @@ import {istToday} from "./dates";
  * The schema is created on first use, under an advisory lock so concurrent cold starts don't race.
  */
 type Sql = postgres.Sql;
-const globalForDb = globalThis as unknown as {repcountSql?: Sql; repcountReady?: Promise<Sql>};
+const globalForDb = globalThis as unknown as {repcountSql?: Sql; repcountReady?: Promise<Sql>; repcountSchema?: string};
 
 function connect(): Sql {
   const url = process.env.DATABASE_URL;
@@ -52,6 +52,10 @@ const schema = `
   );
   create index if not exists clients_trainer_idx on clients (trainer_id);
   alter table clients add column if not exists intake jsonb;
+  alter table clients add column if not exists bio jsonb;
+  -- Incremental member number shown as RC-0001; existing clients are numbered when the column is added.
+  alter table clients add column if not exists member_no bigserial;
+  create unique index if not exists clients_member_no_idx on clients (member_no);
   create table if not exists member_state (
     user_id text primary key references users(id) on delete cascade,
     data jsonb not null,
@@ -174,6 +178,8 @@ async function seedDemo(tx: postgres.TransactionSql) {
 /** The ready-to-use connection; the first call creates the schema. */
 export function db(): Promise<Sql> {
   globalForDb.repcountSql ??= connect();
+  // In dev the connection outlives code reloads; re-apply the (idempotent) schema when it changes so new columns appear without a restart.
+  if (globalForDb.repcountSchema !== schema) { globalForDb.repcountSchema = schema; globalForDb.repcountReady = undefined; }
   globalForDb.repcountReady ??= prepare(globalForDb.repcountSql).catch(error => {
     globalForDb.repcountReady = undefined;
     throw error;

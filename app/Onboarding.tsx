@@ -36,7 +36,7 @@ export default function Onboarding({firstName, goal}: {firstName: string; goal?:
 
       {current ? <>
         <p className="rc-login-lead">{current.lead}</p>
-        <div className="rc-onb-options" role="group" aria-labelledby="auth-heading">
+        <div key={step} className="rc-onb-options" role="group" aria-labelledby="auth-heading">
           {current.options.map((value, i) => {
             const selected = answers[current.key] === value;
             return <button key={value} type="button" aria-pressed={selected} className={selected ? "selected" : undefined} onClick={() => setAnswers({...answers, [current.key]: value})}>

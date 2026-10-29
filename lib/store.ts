@@ -5,7 +5,7 @@ import {rollOver, sanitizeMemberState, type MemberState} from "./memberState";
 import {istToday} from "./dates";
 import {listTrainers, type Trainer} from "./users";
 import type {PlannedWorkout, WeekPlan} from "./schedule";
-import {currency} from "./programme";
+import {currency, type Bio} from "./programme";
 import {sanitizeNutritionPlan, type NutritionPlan} from "./nutritionPlan";
 import {scoreFor, shiftDay, streakFrom, type LeaderboardRow} from "./streak";
 
@@ -13,7 +13,9 @@ export type ClientRow = {
   id: string; name: string; initials: string; stage: string; trainerId: string | null; trainer: string; paid: boolean; progress: number;
   goal: string; lastWorkout: string; lastWorkoutOn: string | null; nextCheckIn: string; reference: string | null; checkinNote: string | null;
   email: string | null; phone: string | null; joinedOn: string | null; userId: string | null; accountActive: boolean | null; meetingUrl: string | null;
-  intake: Intake | null;
+  intake: Intake | null; bio: Bio | null; memberNo: number;
+  /** This week's planned workouts and how many were done (marked by the member or confirmed by the trainer). progress = done ÷ planned. */
+  weekPlanned: number; weekDone: number;
 };
 /** What a member told us when they registered. */
 export type Intake = {place: string; days: string};
@@ -24,6 +26,7 @@ type RawClient = {
   id: string; user_id: string | null; name: string; initials: string; stage: string; trainer_id: string | null; trainer_name: string | null; paid: boolean; progress: number;
   goal: string; last_workout_on: string | null; next_checkin: string; payment_reference: string | null; checkin_note: string | null;
   email: string | null; phone: string | null; joined_on: string | null; account_active: boolean | null; meeting_url: string | null; intake: Intake | null;
+  bio: Bio | null; member_no: string; planned_days: number[]; member_done: unknown; confirmed_days: number[];
 };
 
 /** "Today", "Yesterday", "3 days ago" relative to today in India time. */
@@ -33,18 +36,34 @@ function relativeDay(iso: string | null, today: string) {
   return days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
 }
 
-const toClient = (r: RawClient, today: string): ClientRow => ({
-  id: r.id, name: r.name, initials: r.initials, stage: r.stage, trainerId: r.trainer_id, trainer: r.trainer_name ?? "Unassigned", paid: r.paid, progress: r.progress,
-  goal: r.goal, lastWorkout: relativeDay(r.last_workout_on, today), lastWorkoutOn: r.last_workout_on, nextCheckIn: r.next_checkin, reference: r.payment_reference,
-  checkinNote: r.checkin_note, email: r.email, phone: r.phone, joinedOn: r.joined_on, userId: r.user_id, accountActive: r.account_active, meetingUrl: r.meeting_url,
-  intake: r.intake ? {place: String(r.intake.place ?? ""), days: String(r.intake.days ?? "")} : null,
-});
+const toClient = (r: RawClient, today: string): ClientRow => {
+  const memberDone = Array.isArray(r.member_done) ? r.member_done : [];
+  const weekDone = r.planned_days.filter(d => memberDone.includes(d) || r.confirmed_days.includes(d)).length;
+  const weekPlanned = r.planned_days.length;
+  return {
+    id: r.id, name: r.name, initials: r.initials, stage: r.stage, trainerId: r.trainer_id, trainer: r.trainer_name ?? "Unassigned", paid: r.paid,
+    progress: weekPlanned ? Math.round((weekDone / weekPlanned) * 100) : 0, weekPlanned, weekDone,
+    goal: r.goal, lastWorkout: relativeDay(r.last_workout_on, today), lastWorkoutOn: r.last_workout_on, nextCheckIn: r.next_checkin, reference: r.payment_reference,
+    checkinNote: r.checkin_note, email: r.email, phone: r.phone, joinedOn: r.joined_on, userId: r.user_id, accountActive: r.account_active, meetingUrl: r.meeting_url,
+    intake: r.intake ? {place: String(r.intake.place ?? ""), days: String(r.intake.days ?? "")} : null,
+    bio: r.bio ? {dob: typeof r.bio.dob === "string" ? r.bio.dob : null, gender: typeof r.bio.gender === "string" ? r.bio.gender : null, heightCm: typeof r.bio.heightCm === "number" ? r.bio.heightCm : null} : null,
+    memberNo: Number(r.member_no),
+  };
+};
 
-const clientSelect = (sql: postgres.Sql) => sql`
-  select c.id, c.user_id, c.name, c.initials, c.stage, c.trainer_id, t.name as trainer_name, c.paid, c.progress, c.goal,
+/* Weekly progress is worked out live for the current week, so it never shows last week's number after Monday. */
+const clientSelect = (sql: postgres.Sql) => {
+  const {weekStart} = istToday();
+  return sql`
+  select c.id, c.user_id, c.name, c.initials, c.stage, c.trainer_id, t.name as trainer_name, c.paid, c.goal,
     c.last_workout_on::text as last_workout_on, c.next_checkin, c.payment_reference, c.checkin_note, c.email, c.phone,
-    c.joined_on::text as joined_on, u.active as account_active, c.meeting_url, c.intake
-  from clients c left join users t on t.id = c.trainer_id left join users u on u.id = c.user_id`;
+    c.joined_on::text as joined_on, u.active as account_active, c.meeting_url, c.intake, c.bio, c.member_no,
+    coalesce((select array_agg(wp.day) from workout_plans wp where wp.client_id = c.id and wp.week_start = ${weekStart} and wp.title <> '__rest_week__'), '{}') as planned_days,
+    case when ms.data->>'weekStart' = ${weekStart} then ms.data->'workout'->'completedDays' else '[]'::jsonb end as member_done,
+    coalesce((select array_agg(extract(isodow from sc.day)::int - 1) from session_confirmations sc
+      where sc.client_id = c.id and sc.day between ${weekStart}::date and ${weekStart}::date + 6), '{}') as confirmed_days
+  from clients c left join users t on t.id = c.trainer_id left join users u on u.id = c.user_id left join member_state ms on ms.user_id = c.user_id`;
+};
 
 export async function listClients(trainerId?: string): Promise<ClientRow[]> {
   const sql = await db();
@@ -128,28 +147,53 @@ export async function recentAudit(limit = 8): Promise<AuditEntry[]> {
   return plainAudit(await sql<AuditEntry[]>`${auditSelect(sql)} order by a.id desc limit ${limit}`);
 }
 
+/**
+ * Per-trainer coaching results for the current week (India time):
+ * - completion: workouts done ÷ workouts planned across the trainer's members (member-marked or trainer-confirmed)
+ * - scheduled: members with a plan for this week
+ * - activeWeek: members who trained in the last 7 days
+ * - confirmedWeek: sessions the trainer confirmed this week
+ * - checkinsReviewed: check-ins the trainer reviewed in the last 30 days
+ */
 export type TrainerStats = Trainer & {
-  clients: number; utilisation: number; avgProgress: number; activeToday: number;
-  checkinsWaiting: number; checkinsReviewed: number; paymentsPending: number;
+  clients: number; scheduled: number; workoutsPlanned: number; workoutsDone: number; completion: number;
+  activeWeek: number; confirmedWeek: number; checkinsWaiting: number; checkinsReviewed: number;
 };
 
-/** Per-trainer workload and outcomes, computed from client records and the audit log. */
 export async function trainerAnalytics(): Promise<TrainerStats[]> {
   const sql = await db();
-  const [clients, trainers] = await Promise.all([listClients(), listTrainers()]);
-  const reviewed = await sql<{id: string; n: number}[]>`select actor_id as id, count(*)::int as n from audit_log where action = 'review_checkin' group by actor_id`;
+  const {day: today, weekStart} = istToday();
+  const weekAgo = shiftDay(today, -6);
+  const [clients, trainers, reviewed, confirmed] = await Promise.all([
+    listClients(), listTrainers(),
+    sql<{id: string; n: number}[]>`select actor_id as id, count(*)::int as n from audit_log where action = 'review_checkin' and created_at > now() - interval '30 days' group by actor_id`,
+    sql<{id: string; n: number}[]>`select trainer_id as id, count(*)::int as n from session_confirmations where day between ${weekStart} and ${today} group by trainer_id`,
+  ]);
   return trainers.map(t => {
     const mine = clients.filter(c => c.trainerId === t.id);
+    const workoutsPlanned = mine.reduce((sum, c) => sum + c.weekPlanned, 0);
+    const workoutsDone = mine.reduce((sum, c) => sum + c.weekDone, 0);
     return {
       ...t,
       clients: mine.length,
-      utilisation: t.capacity ? Math.round((mine.length / t.capacity) * 100) : 0,
-      avgProgress: mine.length ? Math.round(mine.reduce((sum, c) => sum + c.progress, 0) / mine.length) : 0,
-      activeToday: mine.filter(c => c.lastWorkout === "Today").length,
+      scheduled: mine.filter(c => c.weekPlanned > 0).length,
+      workoutsPlanned, workoutsDone,
+      completion: workoutsPlanned ? Math.round((workoutsDone / workoutsPlanned) * 100) : 0,
+      activeWeek: mine.filter(c => c.lastWorkoutOn !== null && c.lastWorkoutOn >= weekAgo).length,
+      confirmedWeek: confirmed.find(r => r.id === t.id)?.n ?? 0,
       checkinsWaiting: mine.filter(c => c.stage === "Check-in due").length,
       checkinsReviewed: reviewed.find(r => r.id === t.id)?.n ?? 0,
-      paymentsPending: mine.filter(c => !c.paid).length,
     };
+  });
+}
+
+/** Admin edit of a member's name, contact, goal and biodata. The name is copied to their sign-in so it matches everywhere. */
+export async function updateClientDetails(id: string, input: {name: string; initials: string; phone: string | null; goal: string; bio: Bio}) {
+  const sql = await db();
+  await sql.begin(async tx => {
+    const [row] = await tx<{user_id: string | null}[]>`update clients set name = ${input.name}, initials = ${input.initials}, phone = ${input.phone}, goal = ${input.goal},
+      bio = ${tx.json(input.bio as unknown as postgres.JSONValue)} where id = ${id} returning user_id`;
+    if (row?.user_id) await tx`update users set name = ${input.name}, initials = ${input.initials} where id = ${row.user_id}`;
   });
 }
 
@@ -162,21 +206,21 @@ export async function clientDetail(id: string): Promise<ClientDetail | null> {
   const client = await getClient(id);
   if (!client) return null;
   const sql = await db();
-  let state: MemberState | null = null;
-  let lastSaved: string | null = null;
-  let pastWeeks: PastWeek[] = [];
-  if (client.userId) {
-    state = await getMemberState(client.userId);
-    const [saved] = await sql<{at: string}[]>`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as at from member_state where user_id = ${client.userId}`;
-    lastSaved = saved?.at ?? null;
-    const weeks = await sql<{week_start: string; data: unknown}[]>`select period_start::text as week_start, data from member_history where user_id = ${client.userId} and period = 'week' order by period_start desc limit 12`;
-    pastWeeks = weeks.map(w => {
-      const s = sanitizeMemberState(w.data, w.week_start, w.week_start);
-      return {weekStart: w.week_start, workoutsDone: s.workout.completedDays.length, checkin: s.checkin.submitted ? `Energy ${s.checkin.energy.toLowerCase()} · ${s.checkin.planFit.toLowerCase()}` : null};
-    });
-  }
-  const history = plainAudit(await sql<AuditEntry[]>`${auditSelect(sql)} where a.subject_id = ${id} order by a.id desc limit 50`);
-  return {client, state, history, lastSaved, plan: await getWeekPlan(id, istToday().weekStart), pastWeeks, messages: await listMessages(id)};
+  const userId = client.userId;
+  // Independent reads run together: one round trip to the database instead of seven in a row.
+  const [state, saved, weeks, audit, plan, messages] = await Promise.all([
+    userId ? getMemberState(userId) : null,
+    userId ? sql<{at: string}[]>`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as at from member_state where user_id = ${userId}` : [],
+    userId ? sql<{week_start: string; data: unknown}[]>`select period_start::text as week_start, data from member_history where user_id = ${userId} and period = 'week' order by period_start desc limit 12` : [],
+    sql<AuditEntry[]>`${auditSelect(sql)} where a.subject_id = ${id} order by a.id desc limit 50`,
+    getWeekPlan(id, istToday().weekStart),
+    listMessages(id),
+  ]);
+  const pastWeeks: PastWeek[] = weeks.map(w => {
+    const s = sanitizeMemberState(w.data, w.week_start, w.week_start);
+    return {weekStart: w.week_start, workoutsDone: s.workout.completedDays.length, checkin: s.checkin.submitted ? `Energy ${s.checkin.energy.toLowerCase()} · ${s.checkin.planFit.toLowerCase()}` : null};
+  });
+  return {client, state, history: plainAudit(audit), lastSaved: saved[0]?.at ?? null, plan, pastWeeks, messages};
 }
 
 /** A member's saved progress for today, starting a fresh day or week when the saved state is older. */

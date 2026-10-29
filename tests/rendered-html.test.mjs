@@ -206,6 +206,16 @@ test('a trainer’s schedule and meeting link reach the member’s plan', async 
  assert.match(trainer, /Sessions this week/);
  assert.match(trainer, /Workout plan/);
  assert.match(trainer, /nutrition plan/i);
+ // Workouts, nutrition and progress each have their own page under the member.
+ const akif = await sessionCookie('u-trainer-akif', 'trainer');
+ assert.match(readableText(await (await visit('/trainer/clients/c-aarav/workouts', akif)).text()), /Weekly check-in call link/);
+ // Each day of the week is edited on its own page; unknown weeks and days are 404s.
+ assert.match(readableText(await (await visit(`/trainer/clients/c-aarav/workouts/${week}/monday`, akif)).text()), /Save Monday/);
+ assert.equal((await visit(`/trainer/clients/c-aarav/workouts/${week}/funday`, akif)).status, 404);
+ assert.equal((await visit('/trainer/clients/c-aarav/workouts/2001-01-01/monday', akif)).status, 404);
+ assert.match(readableText(await (await visit('/trainer/clients/c-aarav/nutrition', akif)).text()), /Save nutrition plan/);
+ assert.match(readableText(await (await visit('/trainer/clients/c-aarav/progress', akif)).text()), /History/);
+ assert.equal((await visit('/trainer/clients/c-maya/nutrition', akif)).status, 404, 'Sub-pages check the assignment too');
 });
 
 test('members see their rank, score and streak on the leaderboard', async () => {
@@ -213,6 +223,20 @@ test('members see their rank, score and streak on the leaderboard', async () => 
  const text = readableText(await (await visit('/member/leaderboard', member)).text());
  assert.match(text, /YOUR RANK/);
  assert.match(text, /Aarav S\. · you/);
+});
+
+test('admins see member IDs, profile status and editable trainers', async () => {
+ const admin = await sessionCookie('u-admin', 'admin');
+ const roster = readableText(await (await visit('/admin?tab=clients', admin)).text());
+ assert.match(roster, /RC-\d{4}/);
+ assert.match(roster, /Profile incomplete|No plan this week|workouts/);
+ const team = readableText(await (await visit('/admin?tab=trainers', admin)).text());
+ assert.match(team, /Add trainer/);
+ assert.match(team, /Edit name & title/);
+ assert.doesNotMatch(team, /capacity/i, 'Trainers no longer have a client capacity');
+ const detail = readableText(await (await visit('/admin/clients/c-aarav', admin)).text());
+ assert.match(detail, /Edit details/);
+ assert.match(detail, /Member ID/);
 });
 
 test('trainers open only their own clients’ detail pages', async () => {

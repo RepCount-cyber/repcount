@@ -19,3 +19,46 @@ img[data-nimg]{height:auto;max-width:100%}
 select:not([multiple]){appearance:none;-webkit-appearance:none;cursor:pointer;line-height:1.3;text-overflow:ellipsis;padding-right:38px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2362675b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 12px center!important;background-size:16px!important}
 select:not([multiple]):hover{border-color:#a5a796}
 select:disabled{cursor:not-allowed;opacity:.65}
+
+/* Loading placeholders (app/LoadingShell.tsx). */
+.rc-skel{display:block;border-radius:10px;background:linear-gradient(90deg,#ece8df 0%,#f6f3ec 45%,#ece8df 90%);background-size:250% 100%}
+.rc-loading .sidebar .rc-skel-brand{height:30px;width:150px;margin-bottom:56px}
+.rc-loading .sidebar .rc-skel-nav{height:40px;margin:8px 0;opacity:.5;background:#ffffff1a}
+.rc-skel-avatar{width:35px;height:35px;border-radius:50%}
+.rc-skel-title{height:38px;width:min(380px,70%);margin-bottom:14px}
+.rc-skel-line{height:14px;width:min(520px,90%);margin-bottom:30px}
+.rc-skel-card{height:120px;border-radius:13px}
+.rc-skel-panel{height:320px;margin-top:22px;border-radius:13px}
+
+/* Motion: content rises in as a page or view opens, interactive cards lift on hover, rings and bars fill.
+   Everything here is skipped for visitors who ask for reduced motion. */
+@property --progress{syntax:'<percentage>';inherits:true;initial-value:0%}
+@keyframes rc-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes rc-pop{0%{transform:scale(.6)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes rc-shimmer{from{background-position:100% 0}to{background-position:-150% 0}}
+@keyframes rc-ring{from{--progress:0%}}
+@keyframes rc-grow{from{transform:scaleX(0)}}
+@media (prefers-reduced-motion:no-preference){
+  main>*,.rc-login-card>*,.rc-onb>*{animation:rc-rise .5s cubic-bezier(.2,.7,.2,1) both}
+  main>:nth-child(2),.rc-onb>:nth-child(2){animation-delay:.05s}
+  main>:nth-child(3),.rc-onb>:nth-child(3){animation-delay:.1s}
+  main>:nth-child(4),.rc-onb>:nth-child(4){animation-delay:.15s}
+  main>:nth-child(5),.rc-onb>:nth-child(5){animation-delay:.2s}
+  main>:nth-child(n+6),.rc-onb>:nth-child(n+6){animation-delay:.25s}
+  .three-grid>*,.two-grid>*,.rc-week-days>li,.rc-onb-options>button{animation:rc-rise .45s cubic-bezier(.2,.7,.2,1) both}
+  .three-grid>:nth-child(2),.two-grid>:nth-child(2),.rc-week-days>li:nth-child(2),.rc-onb-options>button:nth-child(2){animation-delay:.06s}
+  .three-grid>:nth-child(3),.rc-week-days>li:nth-child(3),.rc-onb-options>button:nth-child(3){animation-delay:.12s}
+  .rc-week-days>li:nth-child(4),.rc-onb-options>button:nth-child(4){animation-delay:.18s}
+  .rc-week-days>li:nth-child(5),.rc-onb-options>button:nth-child(5){animation-delay:.24s}
+  .rc-week-days>li:nth-child(n+6){animation-delay:.3s}
+  .action-card,.rc-week-days a,.rc-plan-summary,.rc-week-tabs a,.button,.rc-login-submit{transition:transform .2s ease,box-shadow .2s ease,background-color .2s ease,border-color .2s ease}
+  .action-card:hover,.rc-week-days a:hover,.rc-week-tabs a:hover{transform:translateY(-3px);box-shadow:0 10px 24px #2528221a}
+  .button:not(:disabled):hover,.rc-login-submit:not(:disabled):hover{transform:translateY(-1px)}
+  .button:not(:disabled):active,.rc-login-submit:not(:disabled):active{transform:translateY(1px)}
+  .rc-onb-options>button.selected>i,.week-dots .checked,.exercise.complete .exercise-check{animation:rc-pop .3s ease both}
+  .ring{animation:rc-ring 1.1s cubic-bezier(.2,.7,.2,1) both}
+  .rc-onb-progress i{transition:width .45s cubic-bezier(.2,.7,.2,1)}
+  .bar{transform-origin:bottom;animation:rc-rise .6s cubic-bezier(.2,.7,.2,1) both}
+  .rc-skel{animation:rc-shimmer 1.4s linear infinite}
+  .notice{animation:rc-rise .3s ease both}
+}

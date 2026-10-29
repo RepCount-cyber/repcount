@@ -8,11 +8,14 @@ import Brand from "./Brand";
 import {Icon} from "./Media";
 import {BarChart, StaffInsights, palette} from "./Tracker";
 import {logout} from "./actions/auth";
-import {addClient, addTrainer, assignTrainer, reviewCheckin, saveSettings, setAccountActive, verifyPayment} from "./actions/data";
+import {addClient, addTrainer, assignTrainer, editTrainer, reviewCheckin, saveSettings, setAccountActive, verifyPayment} from "./actions/data";
 import type {AuditEntry, ClientRow, Settings, TrainerStats} from "@/lib/store";
+import {memberCode} from "@/lib/programme";
+import Modal from "./Modal";
 import "./member-polish.css";
 import "./accessibility-polish.css";
 import "./staff.css";
+import "./admin.css";
 
 export type StaffRole = "trainer" | "admin";
 export type StaffUser = {name: string; initials: string; email: string};
@@ -27,19 +30,20 @@ const headings: Record<string, [string, string]> = {
   members: ["Your members.", "Open a member to plan their week, add their Meet links and nutrition, and mark sessions completed."],
   checkins: ["Weekly check-ins.", "Review how each client’s week went and adjust their plan."],
   overview: ["The whole gym, at a glance.", "Cohort health, payments and trainer coverage."],
-  trainers: ["Your coaching team.", "Workload, results and capacity for every trainer."],
+  trainers: ["Your coaching team.", "How each trainer’s members are doing this week."],
   settings: ["Programme settings.", "Pricing and cohort rules for the pilot."],
 };
 
-export const activityLabels: Record<string, string> = {assign_trainer: "Trainer assigned", verify_payment: "Payment verified", review_checkin: "Check-in reviewed", update_settings: "Settings updated", add_trainer: "Trainer added", schedule_week: "Week scheduled", confirm_session: "Session completed", unconfirm_session: "Session completion removed", save_nutrition: "Nutrition plan saved", set_meeting_link: "Call link updated", add_client: "Client added", set_stage: "Stage changed", deactivate_user: "Account deactivated", reactivate_user: "Account reactivated", self_register: "Registered online", ask_coach: "Question sent", complete_onboarding: "Onboarding answered"};
+export const activityLabels: Record<string, string> = {assign_trainer: "Trainer assigned", verify_payment: "Payment verified", review_checkin: "Check-in reviewed", update_settings: "Settings updated", add_trainer: "Trainer added", edit_trainer: "Trainer edited", edit_client: "Client details edited", schedule_week: "Week scheduled", confirm_session: "Session completed", unconfirm_session: "Session completion removed", save_nutrition: "Nutrition plan saved", set_meeting_link: "Call link updated", add_client: "Client added", set_stage: "Stage changed", deactivate_user: "Account deactivated", reactivate_user: "Account reactivated", self_register: "Registered online", ask_coach: "Question sent", complete_onboarding: "Onboarding answered"};
 const stageOrder = ["Payment review", "Onboarding", "Check-in due", "Active"];
 const sorters: Record<string, (a: ClientRow, b: ClientRow) => number> = {
   Name: (a, b) => a.name.localeCompare(b.name),
   Trainer: (a, b) => (a.trainer === "Unassigned" ? 1 : 0) - (b.trainer === "Unassigned" ? 1 : 0) || a.trainer.localeCompare(b.trainer) || a.name.localeCompare(b.name),
-  "Progress (high to low)": (a, b) => b.progress - a.progress || a.name.localeCompare(b.name),
+  "Member ID": (a, b) => a.memberNo - b.memberNo,
+  "Progress (high to low)": (a, b) => b.progress - a.progress || b.weekPlanned - a.weekPlanned || a.name.localeCompare(b.name),
   Stage: (a, b) => stageOrder.indexOf(a.stage) - stageOrder.indexOf(b.stage) || a.name.localeCompare(b.name),
 };
-const emptyTrainer = {name: "", email: "", title: "Trainer", capacity: "8", password: ""};
+const emptyTrainer = {name: "", email: "", title: "Trainer", password: ""};
 const emptyClient = {name: "", email: "", phone: "", goal: "", trainerId: "", password: ""};
 
 type Props = {
@@ -54,6 +58,10 @@ export default function StaffApp({area: role, user, clients, settings, activity,
   const [trainerFilter, setTrainerFilter] = useState("All trainers");
   const [sort, setSort] = useState("Trainer");
   const [newTrainer, setNewTrainer] = useState(emptyTrainer);
+  const [addingTrainer, setAddingTrainer] = useState(false);
+  const [editing, setEditing] = useState<{id: string; name: string; title: string} | null>(null);
+  const [paymentFilter, setPaymentFilter] = useState("All payments");
+  const [profileFilter, setProfileFilter] = useState("All profiles");
   const [newClient, setNewClient] = useState(emptyClient);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
@@ -68,9 +76,15 @@ export default function StaffApp({area: role, user, clients, settings, activity,
   });
   const mine = clients;
   const dueCheckIns = mine.filter(c => c.stage === "Check-in due");
+  // Search matches name, email, phone or member ID (with or without the "RC-" and leading zeros).
+  const search = query.trim().toLowerCase();
+  const matches = (c: ClientRow) => !search || [c.name, c.email ?? "", c.phone ?? "", memberCode(c.memberNo)].some(v => v.toLowerCase().includes(search)) || search.replace(/^rc-?0*/, "") === String(c.memberNo);
   const visible = mine
-    .filter(c => c.name.toLowerCase().includes(query.toLowerCase()) && (filter === "All clients" || c.stage === filter) && (trainerFilter === "All trainers" || (trainerFilter === "Unassigned" ? !c.trainerId : c.trainerId === trainerFilter)))
+    .filter(c => matches(c) && (filter === "All clients" || c.stage === filter) && (trainerFilter === "All trainers" || (trainerFilter === "Unassigned" ? !c.trainerId : c.trainerId === trainerFilter))
+      && (paymentFilter === "All payments" || (paymentFilter === "Paid") === c.paid) && (profileFilter === "All profiles" || (profileFilter === "Profile complete") === (c.intake !== null)))
     .sort(sorters[sort]);
+  const filtered = query !== "" || filter !== "All clients" || trainerFilter !== "All trainers" || paymentFilter !== "All payments" || profileFilter !== "All profiles";
+  const clearFilters = () => {setQuery(""); setFilter("All clients"); setTrainerFilter("All trainers"); setPaymentFilter("All payments"); setProfileFilter("All profiles");};
   const openTab = (key: string) => {
     setNotice("");
     if (detail) { router.push(`/${role}?tab=${key}`); return; }
@@ -87,32 +101,61 @@ export default function StaffApp({area: role, user, clients, settings, activity,
 
   const roster = <section className="card">
     <div className="section-top"><h2>{role === "trainer" ? "Your assigned members" : "Client roster"}</h2><span className="pill">{visible.length} SHOWN</span></div>
-    <div className="filters"><input aria-label="Search clients" placeholder="Search client name…" value={query} onChange={e => setQuery(e.target.value)}/><select aria-label="Filter clients by stage" value={filter} onChange={e => setFilter(e.target.value)}><option>All clients</option><option>Active</option><option>Onboarding</option><option>Check-in due</option>{role === "admin" && <option>Payment review</option>}</select>{role === "admin" && <><select aria-label="Filter clients by trainer" value={trainerFilter} onChange={e => setTrainerFilter(e.target.value)}><option>All trainers</option>{trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}<option>Unassigned</option></select><select aria-label="Sort clients" value={sort} onChange={e => setSort(e.target.value)}>{Object.keys(sorters).map(k => <option key={k} value={k}>Sort: {k}</option>)}</select></>}</div>
-    <div className="table-scroll"><table className="rc-cards"><thead><tr><th>Client</th><th>Stage</th>{role === "admin" ? <th>Trainer</th> : <th>Goal</th>}<th>Weekly progress</th>{role === "admin" ? <th>Payment</th> : <th>Last workout</th>}</tr></thead><tbody>
+    <div className="filters rc-roster-filters">
+      <input type="search" aria-label="Search clients" placeholder="Search name, email, phone or ID…" value={query} onChange={e => setQuery(e.target.value)}/>
+      <select aria-label="Filter clients by stage" value={filter} onChange={e => setFilter(e.target.value)}><option>All clients</option><option>Active</option><option>Onboarding</option><option>Check-in due</option>{role === "admin" && <option>Payment review</option>}</select>
+      {role === "admin" && <>
+        <select aria-label="Filter clients by trainer" value={trainerFilter} onChange={e => setTrainerFilter(e.target.value)}><option>All trainers</option>{trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}<option>Unassigned</option></select>
+        <select aria-label="Filter clients by payment" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option>All payments</option><option>Paid</option><option>Unpaid</option></select>
+        <select aria-label="Filter clients by profile" value={profileFilter} onChange={e => setProfileFilter(e.target.value)}><option>All profiles</option><option>Profile complete</option><option>Profile incomplete</option></select>
+        <select aria-label="Sort clients" value={sort} onChange={e => setSort(e.target.value)}>{Object.keys(sorters).map(k => <option key={k} value={k}>Sort: {k}</option>)}</select>
+      </>}
+      {filtered && <button type="button" className="small-button" onClick={clearFilters}>Clear filters</button>}
+    </div>
+    <div className="table-scroll"><table className="rc-cards"><thead><tr><th>ID</th><th>Client</th><th>Stage</th>{role === "admin" ? <th>Trainer</th> : <th>Goal</th>}<th>This week</th>{role === "admin" ? <th>Payment</th> : <th>Last workout</th>}</tr></thead><tbody>
       {visible.map(c => <tr key={c.id}>
-        <td data-label="Client"><span className="client-name"><span className="avatar">{c.initials}</span><Link className="rc-client-link" href={`/${role}/clients/${c.id}`}><b>{c.name}</b><small>{role === "trainer" ? "Plan workouts & nutrition →" : "View details →"}</small></Link></span></td>
-        <td data-label="Stage"><span className="pill">{c.stage}</span></td>
+        <td data-label="ID" className="rc-member-id">{memberCode(c.memberNo)}</td>
+        <td data-label="Client"><span className="client-name"><span className="avatar">{c.initials}</span><Link className="rc-client-link" href={`/${role}/clients/${c.id}`}><b>{c.name}</b><small>{role === "trainer" ? "Open member →" : "View details →"}</small></Link></span></td>
+        <td data-label="Stage"><span className="pill">{c.stage}</span>{!c.intake && <span className="pill rc-pill-warn" title="Profile completes when the member answers the onboarding questions">Profile incomplete</span>}</td>
         {role === "admin"
           ? <td data-label="Trainer"><select aria-label={`Trainer for ${c.name}`} value={c.trainerId ?? ""} disabled={pending} onChange={e => {const trainerId = e.target.value; run(() => assignTrainer(c.id, trainerId));}}><option value="">Unassigned</option>{trainers.filter(t => t.active || t.id === c.trainerId).map(t => <option key={t.id} value={t.id}>{t.name}{t.active ? "" : " (inactive)"}</option>)}</select></td>
           : <td data-label="Goal">{c.goal}</td>}
-        <td data-label="Weekly progress"><progress max="100" value={c.progress} aria-label={`${c.name} workout completion`}/><small>{c.progress}%</small></td>
+        <td data-label="This week">{c.weekPlanned
+          ? <><progress max={c.weekPlanned} value={c.weekDone} aria-label={`${c.name}: ${c.weekDone} of ${c.weekPlanned} workouts done this week`}/><small>{c.weekDone} of {c.weekPlanned} workouts · {c.progress}%</small></>
+          : <small className="rc-muted">No plan this week</small>}</td>
         {role === "admin"
           ? <td data-label="Payment">{c.paid ? <span className="paid">Verified ✓</span> : <button className="small-button" disabled={pending} onClick={() => run(() => verifyPayment(c.id))}>Verify {c.reference ?? "payment"}</button>}</td>
           : <td data-label="Last workout">{c.lastWorkout}</td>}
       </tr>)}
-      {visible.length === 0 && <tr className="member-empty-row"><td colSpan={5} data-label="">No clients match this view. Try another filter or search.</td></tr>}
+      {visible.length === 0 && <tr className="member-empty-row"><td colSpan={6} data-label="">No clients match this view. Try another filter or search.</td></tr>}
     </tbody></table></div>
   </section>;
 
   const trainerPerformance = role === "admin" && trainers.length > 0 && <section className="card rc-trainer-performance" aria-labelledby="rc-trainer-performance">
-    <div className="section-top"><h2 id="rc-trainer-performance">Trainer performance</h2><span className="pill">{trainers.length} TRAINERS</span></div>
+    <div className="section-top"><h2 id="rc-trainer-performance">Trainer performance</h2><span className="pill">THIS WEEK</span></div>
     <div className="rc-trainer-perf-grid">
-      <div><h3>Average client progress</h3><BarChart label="Average weekly progress of each trainer’s clients" unit="percent" color={palette.sage} bars={trainers.map(t => ({label: t.name, value: t.avgProgress, planned: 100}))} format={n => `${n}%`} emptyLabel="0%" rowLabel="Trainer"/></div>
-      <div><h3>Capacity used</h3><BarChart label="Share of each trainer’s client capacity in use" unit="percent" color={palette.lilac} bars={trainers.map(t => ({label: t.name, value: t.utilisation, planned: 100}))} format={n => `${n}%`} emptyLabel="0%" rowLabel="Trainer"/></div>
+      <div><h3>Workout completion</h3><BarChart label="Share of planned workouts done this week, per trainer" unit="percent" color={palette.sage} bars={trainers.map(t => ({label: t.name, value: t.completion, planned: 100}))} format={n => `${n}%`} emptyLabel="0%" rowLabel="Trainer"/></div>
+      <div><h3>Members active in the last 7 days</h3><BarChart label="Share of each trainer’s members who trained in the last 7 days" unit="percent" color={palette.lilac} bars={trainers.map(t => ({label: t.name, value: t.clients ? Math.round((t.activeWeek / t.clients) * 100) : 0, planned: 100}))} format={n => `${n}%`} emptyLabel="0%" rowLabel="Trainer"/></div>
     </div>
-    <div className="table-scroll"><table className="rc-cards"><thead><tr><th>Trainer</th><th>Clients</th><th>Avg progress</th><th>Trained today</th><th>Check-ins waiting</th><th>Reviewed</th><th>Unpaid</th></tr></thead><tbody>
-      {trainers.map(t => <tr key={t.id}><td data-label="Trainer"><span className="client-name"><span className="avatar">{t.initials}</span><b>{t.name}</b></span></td><td data-label="Clients">{t.clients}/{t.capacity}</td><td data-label="Avg progress">{t.avgProgress}%</td><td data-label="Trained today">{t.activeToday}</td><td data-label="Check-ins waiting">{t.checkinsWaiting}</td><td data-label="Reviewed">{t.checkinsReviewed}</td><td data-label="Unpaid">{t.paymentsPending}</td></tr>)}
+    <div className="table-scroll"><table className="rc-cards"><thead><tr><th>Trainer</th><th>Members</th><th>Planned this week</th><th>Workouts done</th><th>Active 7 days</th><th>Sessions confirmed</th><th>Check-ins waiting</th><th>Reviewed (30 days)</th></tr></thead><tbody>
+      {trainers.map(t => <tr key={t.id}>
+        <td data-label="Trainer"><span className="client-name"><span className="avatar">{t.initials}</span><b>{t.name}</b></span></td>
+        <td data-label="Members">{t.clients}</td>
+        <td data-label="Planned this week">{t.scheduled} of {t.clients} members</td>
+        <td data-label="Workouts done">{t.workoutsDone} of {t.workoutsPlanned}{t.workoutsPlanned ? ` · ${t.completion}%` : ""}</td>
+        <td data-label="Active 7 days">{t.activeWeek} of {t.clients}</td>
+        <td data-label="Sessions confirmed">{t.confirmedWeek}</td>
+        <td data-label="Check-ins waiting">{t.checkinsWaiting}</td>
+        <td data-label="Reviewed (30 days)">{t.checkinsReviewed}</td>
+      </tr>)}
     </tbody></table></div>
+    <details className="rc-perf-help"><summary>How these numbers are calculated</summary><ul>
+      <li><b>Planned this week</b>: members whose trainer has scheduled at least one workout for this week (Monday–Sunday, India time).</li>
+      <li><b>Workouts done</b>: planned workouts this week that the member marked done or the trainer confirmed, out of all planned workouts.</li>
+      <li><b>Active 7 days</b>: members who completed a workout or marked a day complete in the last 7 days.</li>
+      <li><b>Sessions confirmed</b>: sessions the trainer marked completed this week.</li>
+      <li><b>Check-ins</b>: weekly check-ins waiting for review now, and how many the trainer reviewed in the last 30 days.</li>
+    </ul></details>
   </section>;
 
   const checkIns = <section className="card">
@@ -134,7 +177,7 @@ export default function StaffApp({area: role, user, clients, settings, activity,
       <div className="sidebar-bottom"><div className="profile"><span className="avatar">{user.initials}</span><div><b>{user.name}</b><small>{user.email}</small></div></div><form action={logout}><button type="submit">Log out <span><Icon name="arrow" size={16}/></span></button></form></div>
     </aside>
     <div className="content">
-      <header className="topbar"><span><span className="status-dot"/> INDIA PILOT <span className="divider">/</span> {role === "admin" ? "ADMINISTRATION" : "COACHING"}</span><div><span className="demo-badge">{pending ? "Saving…" : "Live cohort data"}</span><span className="top-avatar" aria-hidden="true">{user.initials}</span><form action={logout}><button type="submit" className="top-logout">Log out</button></form></div></header>
+      <header className="topbar"><span/><div><span className="demo-badge">{pending ? "Saving…" : "Live cohort data"}</span><span className="top-avatar" aria-hidden="true">{user.initials}</span><form action={logout}><button type="submit" className="top-logout">Log out</button></form></div></header>
       <main id="main">
         {detail ?? <>
         <div className="page-heading"><div><p className="eyebrow">{role === "admin" ? "SUPER ADMIN" : `TRAINER · ${user.name.toUpperCase()}`}</p><h1 tabIndex={-1}>{title}</h1><p>{subtitle}</p></div></div>
@@ -160,33 +203,45 @@ export default function StaffApp({area: role, user, clients, settings, activity,
         </section>}
         {tab === "checkins" && checkIns}
         {tab === "trainers" && <>
+          <div className="rc-section-actions"><button className="button dark" onClick={() => {setNotice(""); setAddingTrainer(true);}}><Icon name="plus" size={16}/> Add trainer</button></div>
           {trainerPerformance}
           <div className="two-grid equal">{trainers.map(t => <section className="card team-card rc-trainer-card" key={t.id}>
             <span className="large-avatar">{t.initials}</span><span className="eyebrow">{t.title}</span><h2>{t.name}</h2>
             <p className="rc-trainer-email">{t.email} · {t.active ? (t.canUsePassword ? "password or Google" : "Google sign-in") : "deactivated"}</p>
-            <progress max={t.capacity} value={t.clients} aria-label={`${t.name} capacity`}/>
             <dl className="rc-trainer-stats">
-              <div><dt>Clients</dt><dd>{t.clients}/{t.capacity}</dd></div>
-              <div><dt>Avg progress</dt><dd>{t.avgProgress}%</dd></div>
-              <div><dt>Trained today</dt><dd>{t.activeToday}</dd></div>
+              <div><dt>Members</dt><dd>{t.clients}</dd></div>
+              <div><dt>Workouts done</dt><dd>{t.workoutsDone} of {t.workoutsPlanned}</dd></div>
+              <div><dt>Active 7 days</dt><dd>{t.activeWeek} of {t.clients}</dd></div>
+              <div><dt>Sessions confirmed</dt><dd>{t.confirmedWeek}</dd></div>
               <div><dt>Check-ins waiting</dt><dd>{t.checkinsWaiting}</dd></div>
-              <div><dt>Check-ins reviewed</dt><dd>{t.checkinsReviewed}</dd></div>
-              <div><dt>Unpaid clients</dt><dd>{t.paymentsPending}</dd></div>
+              <div><dt>Reviewed (30 days)</dt><dd>{t.checkinsReviewed}</dd></div>
             </dl>
             <button className="button outline" onClick={() => {setTrainerFilter(t.id); setSort("Name"); openTab("clients");}}>View {t.name}’s clients →</button>
-            <button className="text-button" disabled={pending} onClick={() => run(() => setAccountActive(t.id, !t.active))}>{t.active ? "Deactivate sign-in" : "Reactivate sign-in"}</button>
+            <div className="rc-trainer-actions">
+              <button className="text-button" onClick={() => {setNotice(""); setEditing({id: t.id, name: t.name, title: t.title});}}>Edit name &amp; title</button>
+              <button className="text-button" disabled={pending} onClick={() => run(() => setAccountActive(t.id, !t.active))}>{t.active ? "Deactivate sign-in" : "Reactivate sign-in"}</button>
+            </div>
           </section>)}</div>
-          <section className="card" id="add-trainer"><span className="tile-icon sage"><Icon name="heart" size={22}/></span><h2>Add a trainer</h2>
+          <Modal open={addingTrainer} eyebrow="COACHING TEAM" title="Add a trainer" onClose={() => setAddingTrainer(false)}>
             <p>The trainer signs in with Google using this email. Add a password too if they don’t use Google.</p>
-            <form className="rc-staff-settings" onSubmit={e => {e.preventDefault(); run(async () => {const result = await addTrainer(newTrainer); if (result.ok) setNewTrainer(emptyTrainer); return result;});}}>
-              <label><span>Full name</span><input value={newTrainer.name} onChange={e => setNewTrainer({...newTrainer, name: e.target.value})} required maxLength={40} autoComplete="off"/></label>
-              <label><span>Email (Google account)</span><input type="email" value={newTrainer.email} onChange={e => setNewTrainer({...newTrainer, email: e.target.value})} required autoComplete="off"/></label>
-              <label><span>Role title</span><input value={newTrainer.title} onChange={e => setNewTrainer({...newTrainer, title: e.target.value})} maxLength={40}/></label>
-              <label><span>Client capacity</span><input inputMode="numeric" value={newTrainer.capacity} onChange={e => setNewTrainer({...newTrainer, capacity: e.target.value})} required/></label>
-              <label><span>Password (optional)</span><input type="password" value={newTrainer.password} onChange={e => setNewTrainer({...newTrainer, password: e.target.value})} minLength={10} autoComplete="new-password" placeholder="10+ characters"/></label>
-              <button className="button dark" type="submit" disabled={pending}>{pending ? "Adding…" : "Add trainer"}</button>
+            <form className="rc-modal-form" onSubmit={e => {e.preventDefault(); run(async () => {const result = await addTrainer(newTrainer); if (result.ok) {setNewTrainer(emptyTrainer); setAddingTrainer(false);} return result;});}}>
+              <label className="field">Full name<input value={newTrainer.name} onChange={e => setNewTrainer({...newTrainer, name: e.target.value})} required maxLength={40} autoComplete="off"/></label>
+              <label className="field">Email (Google account)<input type="email" value={newTrainer.email} onChange={e => setNewTrainer({...newTrainer, email: e.target.value})} required autoComplete="off"/></label>
+              <label className="field">Role title<input value={newTrainer.title} onChange={e => setNewTrainer({...newTrainer, title: e.target.value})} maxLength={40}/></label>
+              <label className="field">Password (optional)<input type="password" value={newTrainer.password} onChange={e => setNewTrainer({...newTrainer, password: e.target.value})} minLength={10} autoComplete="new-password" placeholder="10+ characters"/></label>
+              {notice && noticeError && <p className="rc-modal-error" role="alert">{notice}</p>}
+              <button className="button dark" type="submit" disabled={pending}>{pending ? "Adding…" : "Add trainer"} →</button>
             </form>
-          </section>
+          </Modal>
+          <Modal open={editing !== null} eyebrow="COACHING TEAM" title="Edit trainer" onClose={() => setEditing(null)}>
+            {editing && <form className="rc-modal-form" onSubmit={e => {e.preventDefault(); run(async () => {const result = await editTrainer(editing.id, editing); if (result.ok) setEditing(null); return result;});}}>
+              <label className="field">Full name<input value={editing.name} onChange={e => setEditing({...editing, name: e.target.value})} required maxLength={40} autoComplete="off"/></label>
+              <label className="field">Role title<input value={editing.title} onChange={e => setEditing({...editing, title: e.target.value})} maxLength={40}/></label>
+              <p className="small-note">Members and the trainer see the new name straight away.</p>
+              {notice && noticeError && <p className="rc-modal-error" role="alert">{notice}</p>}
+              <button className="button dark" type="submit" disabled={pending}>{pending ? "Saving…" : "Save changes"} →</button>
+            </form>}
+          </Modal>
         </>}
         {tab === "settings" && <section className="card"><h2>Founding cohort</h2>
           <form className="rc-staff-settings" onSubmit={e => {e.preventDefault(); run(() => saveSettings(draft));}}>

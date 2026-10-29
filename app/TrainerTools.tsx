@@ -18,7 +18,7 @@ export function SessionChecklist({clientId, firstName, plan, weekStart, today, m
   const days = Array.from({length: 7}, (_, i) => ({i, iso: shiftDay(weekStart, i), workout: plan?.[i] ?? null})).filter(d => d.workout);
   return <section className="card rc-sessions">
     <div className="section-top"><h2>Sessions this week</h2><span className="pill">{confirmed.length} CONFIRMED</span></div>
-    {days.length === 0 ? <p className="rc-staff-empty">No workouts scheduled this week. Plan {firstName}’s week below.</p>
+    {days.length === 0 ? <p className="rc-staff-empty">No workouts scheduled this week. Plan {firstName}’s week in Workout plan.</p>
       : <ul className="rc-staff-list">{days.map(({i, iso, workout}) => {
         const isConfirmed = confirmed.includes(iso);
         const future = iso > today;

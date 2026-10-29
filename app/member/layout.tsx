@@ -34,7 +34,7 @@ export default async function MemberLayout({children}: {children: React.ReactNod
       coach={trainer ? {name: trainer.name, initials: trainer.initials} : {name: "Your trainer", initials: "RC"}}
       checkinLink={client?.meetingUrl ?? null}
       membership={client?.joinedOn ? {start: formatDay(client.joinedOn, 0), end: formatDay(client.joinedOn, 29), iso: client.joinedOn} : null}
-      details={{phone: client?.phone ?? null, goal: client?.goal ?? null, place: client?.intake?.place ?? null, days: client?.intake?.days ?? null, stage: client?.stage ?? null, paid: client?.paid ?? false}}
+      details={{phone: client?.phone ?? null, goal: client?.goal ?? null, place: client?.intake?.place ?? null, days: client?.intake?.days ?? null, stage: client?.stage ?? null, paid: client?.paid ?? false, bio: client?.bio ?? null, memberNo: client?.memberNo ?? null}}
       nutritionPlan={nutritionPlan}
       confirmed={confirmed}
       ranking={ranking.map(r => ({rank: r.rank, name: r.name, initials: r.initials, score: r.score, streak: r.streak, you: r.userId === user.id}))}

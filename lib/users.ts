@@ -5,7 +5,7 @@ import {dummyHash, hashPassword, passwordMatches} from "./passwords";
 import type {Role} from "./roles";
 
 export type User = {id: string; email: string; name: string; initials: string; role: Role; sessionVersion: number};
-export type Trainer = User & {title: string; capacity: number; canUsePassword: boolean; active: boolean; createdAt: string};
+export type Trainer = User & {title: string; canUsePassword: boolean; active: boolean; createdAt: string};
 type Row = {id: string; email: string; name: string; initials: string; role: Role; password_hash: string | null; title: string | null; capacity: number; active: boolean; session_version: number; created_at: Date};
 
 const publicUser = ({id, email, name, initials, role, session_version}: Row): User => ({id, email, name, initials, role, sessionVersion: session_version});
@@ -38,17 +38,24 @@ export async function findUserByEmail(email: string): Promise<User | null> {
 export async function listTrainers(): Promise<Trainer[]> {
   const sql = await db();
   const rows = await sql<Row[]>`select * from users where role = 'trainer' order by created_at, name`;
-  return rows.map(r => ({...publicUser(r), title: r.title ?? "Trainer", capacity: r.capacity, canUsePassword: r.password_hash !== null, active: r.active, createdAt: r.created_at.toISOString()}));
+  return rows.map(r => ({...publicUser(r), title: r.title ?? "Trainer", canUsePassword: r.password_hash !== null, active: r.active, createdAt: r.created_at.toISOString()}));
+}
+
+/** Admin edit of a trainer's display name and role title. */
+export async function updateTrainer(id: string, name: string, title: string) {
+  const sql = await db();
+  const [row] = await sql<{name: string}[]>`update users set name = ${name}, initials = ${initialsOf(name, "TR")}, title = ${title} where id = ${id} and role = 'trainer' returning name`;
+  return row?.name ?? null;
 }
 
 export const initialsOf = (name: string, fallback: string) => name.split(/\s+/).filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || fallback;
 
-export async function createUser(input: {role: Role; name: string; email: string; password: string | null; title?: string; capacity?: number}) {
+export async function createUser(input: {role: Role; name: string; email: string; password: string | null; title?: string}) {
   const sql = await db();
   const id = `u-${input.role}-${randomBytes(6).toString("hex")}`;
-  await sql`insert into users (id, email, name, initials, role, password_hash, title, capacity)
+  await sql`insert into users (id, email, name, initials, role, password_hash, title)
     values (${id}, ${input.email.trim().toLowerCase()}, ${input.name.trim()}, ${initialsOf(input.name, input.role === "trainer" ? "TR" : "RC")}, ${input.role},
-      ${input.password ? hashPassword(input.password) : null}, ${input.title ?? null}, ${input.capacity ?? 0})`;
+      ${input.password ? hashPassword(input.password) : null}, ${input.title ?? null})`;
   return id;
 }
 

@@ -1,0 +1,19 @@
+/* Super-admin: roster filters, member IDs, trainer modals and the performance explainer */
+.rc-staff .rc-roster-filters{flex-wrap:wrap;align-items:flex-end;gap:10px}
+.rc-staff .rc-roster-filters input{flex:1 1 260px;max-width:none}
+.rc-staff .rc-roster-filters select{flex:0 1 180px}
+.rc-staff .rc-roster-filters .small-button{align-self:center}
+.rc-staff .rc-member-id{font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.4px;color:#6f6c63;white-space:nowrap}
+.rc-staff .rc-pill-warn{background:#fbeee0;color:#8a5a1f;margin-left:6px}
+.rc-staff .rc-muted{color:#8b877d}
+.rc-staff .rc-section-actions{display:flex;justify-content:flex-end;margin:-8px 0 18px}
+.rc-staff .rc-section-actions .button{display:inline-flex;align-items:center;gap:8px}
+.rc-staff .rc-trainer-actions{display:flex;flex-wrap:wrap;gap:4px 18px;justify-content:center;margin-top:6px}
+.rc-staff .rc-perf-help{margin-top:16px;font-size:13px;color:#5f5c55}
+.rc-staff .rc-perf-help summary{cursor:pointer;font-weight:500;color:#3d3b36}
+.rc-staff .rc-perf-help ul{margin:10px 0 0;padding-left:18px;display:grid;gap:6px}
+.rc-modal .rc-modal-form .field{margin:14px 0}
+.rc-modal .rc-modal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rc-modal .rc-modal-error{color:#a8202f;background:#fbeaec;border-radius:8px;padding:10px 12px;font-size:13px}
+.rc-staff .rc-detail-heading>.button{align-self:center}
+@media(max-width:700px){.rc-staff .rc-roster-filters select,.rc-staff .rc-roster-filters input{flex:1 1 100%}.rc-modal .rc-modal-row{grid-template-columns:1fr}.rc-staff .rc-section-actions{justify-content:stretch}.rc-staff .rc-section-actions .button{width:100%;justify-content:center}}

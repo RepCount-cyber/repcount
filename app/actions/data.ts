@@ -5,9 +5,11 @@ import {revalidatePath} from "next/cache";
 import {requireRole} from "@/lib/dal";
 import {istToday} from "@/lib/dates";
 import * as store from "@/lib/store";
-import {createUser, emailTaken, initialsOf, listTrainers, setUserActive} from "@/lib/users";
+import {createUser, emailTaken, initialsOf, listTrainers, setUserActive, updateTrainer} from "@/lib/users";
 import {cleanMeetingUrl, planningWeeks, sanitizeWeekPlan} from "@/lib/schedule";
 import {sanitizeNutritionPlan} from "@/lib/nutritionPlan";
+import {genders} from "@/lib/programme";
+import {shiftDay} from "@/lib/streak";
 
 type Result = {ok?: string; error?: string};
 const validEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
@@ -88,22 +90,59 @@ export async function saveSettings(input: {price: string; cohortSize: string}): 
   return {ok: "Programme settings saved."};
 }
 
-export async function addTrainer(input: {name: string; email: string; title: string; capacity: string; password: string}): Promise<Result> {
+export async function addTrainer(input: {name: string; email: string; title: string; password: string}): Promise<Result> {
   const user = await requireRole("admin");
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   const title = input.title.trim() || "Trainer";
-  const capacity = Number(input.capacity);
   if (name.length < 2 || name.length > 40) return {error: "Enter the trainer’s name (2–40 characters)."};
   if (!validEmail(email)) return {error: "Enter a valid email address."};
   if (title.length > 40) return {error: "Keep the role title under 40 characters."};
-  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 50) return {error: "Client capacity must be between 1 and 50."};
   if (input.password && (input.password.length < 10 || input.password.length > 200)) return {error: "A password needs at least 10 characters, or leave it blank for Google sign-in only."};
   if (await emailTaken(email)) return {error: "A user with that email already exists."};
-  const id = await createUser({role: "trainer", name, email, title, capacity, password: input.password || null});
+  const id = await createUser({role: "trainer", name, email, title, password: input.password || null});
   await store.audit(user.id, "add_trainer", `${name} · ${email}`, id);
   revalidatePath("/admin", "layout");
   return {ok: `${name} added. They can sign in ${input.password ? "with their password or " : "with "}Google using ${email}.`};
+}
+
+export async function editTrainer(id: string, input: {name: string; title: string}): Promise<Result> {
+  const user = await requireRole("admin");
+  const name = input.name.trim();
+  const title = input.title.trim() || "Trainer";
+  if (name.length < 2 || name.length > 40) return {error: "Enter the trainer’s name (2–40 characters)."};
+  if (title.length > 40) return {error: "Keep the role title under 40 characters."};
+  const updated = await updateTrainer(id, name, title);
+  if (!updated) return {error: "That trainer no longer exists."};
+  await store.audit(user.id, "edit_trainer", `${name} · ${title}`, id);
+  revalidatePath("/admin", "layout");
+  revalidatePath("/trainer", "layout");
+  revalidatePath("/member", "layout");
+  return {ok: `${name}’s details saved.`};
+}
+
+/** Admin edit of a member's name, phone, goal and biodata (date of birth, gender, height). */
+export async function editClientDetails(clientId: string, input: {name: string; phone: string; goal: string; dob: string; gender: string; heightCm: string}): Promise<Result> {
+  const user = await requireRole("admin");
+  const client = await store.getClient(clientId);
+  if (!client) return {error: "That client no longer exists."};
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  const goal = input.goal.trim();
+  const height = input.heightCm.trim() ? Number(input.heightCm) : null;
+  const {day: today} = istToday();
+  if (name.length < 2 || name.length > 60) return {error: "Enter the client’s full name (2–60 characters)."};
+  if (phone && !/^\+?[\d\s()-]{7,20}$/.test(phone)) return {error: "Enter a phone number with digits only, or leave it blank."};
+  if (!goal || goal.length > 60) return {error: "Enter the client’s goal (up to 60 characters)."};
+  if (input.dob && (!/^\d{4}-\d{2}-\d{2}$/.test(input.dob) || input.dob < "1920-01-01" || input.dob > shiftDay(today, -18 * 365))) return {error: "Enter a date of birth for someone 18 or over."};
+  if (input.gender && !(genders as readonly string[]).includes(input.gender)) return {error: "Choose a gender from the list."};
+  if (height !== null && (!Number.isInteger(height) || height < 100 || height > 250)) return {error: "Height must be a whole number of centimetres between 100 and 250."};
+  await store.updateClientDetails(clientId, {name, initials: initialsOf(name, "RC"), phone: phone || null, goal, bio: {dob: input.dob || null, gender: input.gender || null, heightCm: height}});
+  await store.audit(user.id, "edit_client", `${name} · details updated`, clientId);
+  revalidatePath("/admin", "layout");
+  revalidatePath("/trainer", "layout");
+  revalidatePath("/member", "layout");
+  return {ok: `${name}’s details saved.`};
 }
 
 /** Creates the member's sign-in and their client record. They start in payment review. */
